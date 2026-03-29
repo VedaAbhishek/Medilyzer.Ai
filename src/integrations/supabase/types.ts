@@ -230,6 +230,7 @@ export type Database = {
           contraception_type: string | null
           created_at: string
           cycle_length: number | null
+          diet_preferences: Json | null
           dob: string | null
           doctor_clinic: string | null
           doctor_name: string | null
@@ -262,6 +263,7 @@ export type Database = {
           contraception_type?: string | null
           created_at?: string
           cycle_length?: number | null
+          diet_preferences?: Json | null
           dob?: string | null
           doctor_clinic?: string | null
           doctor_name?: string | null
@@ -294,6 +296,7 @@ export type Database = {
           contraception_type?: string | null
           created_at?: string
           cycle_length?: number | null
+          diet_preferences?: Json | null
           dob?: string | null
           doctor_clinic?: string | null
           doctor_name?: string | null

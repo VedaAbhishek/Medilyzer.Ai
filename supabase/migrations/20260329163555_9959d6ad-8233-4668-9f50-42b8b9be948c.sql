@@ -1,0 +1,1 @@
+ALTER TABLE public.patients ADD COLUMN IF NOT EXISTS diet_preferences jsonb DEFAULT NULL;
