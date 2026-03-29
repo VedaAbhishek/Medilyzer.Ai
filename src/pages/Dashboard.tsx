@@ -51,7 +51,7 @@ const Dashboard = () => {
       case "diet":
         return <DietSection patientId={patientId} />;
       case "ask":
-        return <AskQuestionSection />;
+        return <AskQuestionSection patientId={patientId} />;
       case "doctor":
         return <FindDoctorSection patientId={patientId} />;
       default:
