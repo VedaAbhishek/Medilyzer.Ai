@@ -1,35 +1,13 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { FileText, Trash2, Eye, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import ReportCard from "./ReportCard";
 
 interface Report {
   id: string;
   file_url: string | null;
   type: string;
   upload_date: string;
+  raw_text: string | null;
 }
 
 interface ReportsListProps {
@@ -38,18 +16,14 @@ interface ReportsListProps {
 }
 
 const ReportsList = ({ patientId, onDeleteComplete }: ReportsListProps) => {
-  const { user } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [viewReport, setViewReport] = useState<Report | null>(null);
 
   const fetchReports = async () => {
     if (!patientId) return;
     const { data } = await supabase
       .from("medical_records")
-      .select("id, file_url, type, upload_date")
+      .select("id, file_url, type, upload_date, raw_text")
       .eq("patient_id", patientId)
       .order("upload_date", { ascending: false });
     setReports(data || []);
@@ -60,176 +34,28 @@ const ReportsList = ({ patientId, onDeleteComplete }: ReportsListProps) => {
     fetchReports();
   }, [patientId]);
 
-  const getFileName = (url: string | null) => {
-    if (!url) return "Unknown file";
-    const parts = url.split("/");
-    const raw = parts[parts.length - 1];
-    // Remove timestamp prefix (e.g. "1234567890_filename.pdf")
-    const match = raw.match(/^\d+_(.+)$/);
-    return match ? decodeURIComponent(match[1]) : decodeURIComponent(raw);
-  };
+  if (loading) {
+    return <p className="text-base text-muted-foreground">Loading…</p>;
+  }
 
-  const getStoragePath = (url: string | null) => {
-    if (!url || !user) return null;
-    // Extract path after /medical-records/
-    const match = url.match(/\/medical-records\/(.+)$/);
-    return match ? decodeURIComponent(match[1]) : null;
-  };
-
-  const handleDelete = async () => {
-    if (!deleteId || !patientId) return;
-    setDeleting(true);
-
-    try {
-      const report = reports.find((r) => r.id === deleteId);
-
-      // Delete from storage
-      const storagePath = getStoragePath(report?.file_url ?? null);
-      if (storagePath) {
-        await supabase.storage.from("medical-records").remove([storagePath]);
-      }
-
-      // Delete related markers, summaries, then the record itself
-      await supabase.from("markers").delete().eq("record_id", deleteId);
-      await supabase.from("summaries").delete().eq("record_id", deleteId);
-      await supabase.from("medical_records").delete().eq("id", deleteId);
-
-      toast({ title: "Report deleted successfully" });
-      setDeleteId(null);
-      await fetchReports();
-      onDeleteComplete();
-    } catch (err: any) {
-      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const formatDate = (dateStr: string) => {
-    try {
-      return format(new Date(dateStr), "MMM d, yyyy 'at' h:mm a");
-    } catch {
-      return dateStr;
-    }
-  };
-
-  const typeBadge = (type: string) => {
-    const label = type === "prescription" ? "Prescription" : "Lab Report";
-    return (
-      <Badge variant="secondary" className="text-xs">
-        {label}
-      </Badge>
-    );
-  };
+  if (reports.length === 0) {
+    return <p className="text-base text-muted-foreground">No reports uploaded yet</p>;
+  }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">My Uploaded Reports</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : reports.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No reports uploaded yet</p>
-        ) : (
-          <div className="space-y-3">
-            {reports.map((report) => (
-              <div
-                key={report.id}
-                className="flex items-center justify-between gap-3 rounded-lg border p-3"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <FileText className="h-5 w-5 shrink-0 text-primary" />
-                  <div className="min-w-0">
-                    <button
-                      className="text-sm font-medium truncate text-left hover:text-primary hover:underline transition-colors cursor-pointer block"
-                      onClick={() => setViewReport(report)}
-                    >
-                      {getFileName(report.file_url)}
-                    </button>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(report.upload_date)}
-                    </p>
-                  </div>
-                  {typeBadge(report.type)}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-primary border-primary hover:bg-primary/10"
-                    onClick={() => setViewReport(report)}
-                  >
-                    <Eye className="h-4 w-4" />
-                    View
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setDeleteId(report.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-
-      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete report?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this report? This will also remove all markers and data extracted from it.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={deleting}>
-              {deleting ? "Deleting…" : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <Dialog open={!!viewReport} onOpenChange={(open) => !open && setViewReport(null)}>
-        <DialogContent className="max-w-[80vw] w-[80vw] h-[85vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>{viewReport ? getFileName(viewReport.file_url) : ""}</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 min-h-0">
-            {viewReport?.file_url && (
-              <iframe
-                src={viewReport.file_url}
-                className="w-full h-full rounded border"
-                title="PDF Viewer"
-              />
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              className="text-primary border-primary hover:bg-primary/10"
-              onClick={() => {
-                if (viewReport?.file_url) {
-                  const a = document.createElement("a");
-                  a.href = viewReport.file_url;
-                  a.download = getFileName(viewReport.file_url);
-                  a.target = "_blank";
-                  a.click();
-                }
-              }}
-            >
-              <Download className="h-4 w-4" />
-              Download
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Card>
+    <div className="space-y-6">
+      {reports.map((report) => (
+        <ReportCard
+          key={report.id}
+          report={report}
+          patientId={patientId!}
+          onDeleteComplete={() => {
+            fetchReports();
+            onDeleteComplete();
+          }}
+        />
+      ))}
+    </div>
   );
 };
 
