@@ -184,7 +184,7 @@ const HomeSection = ({ patient, profileName, markers, trends, summary, hasReport
         <h2 className="text-2xl font-bold text-foreground">How Your Results Are Trending</h2>
         {trends.length > 0 ? (
           <>
-            <TrendsChart trends={trends} />
+            <TrendsChart trends={trends} markers={markers} />
             {trendMarkers.length > 0 && (
               <Card>
                 <CardContent className="p-6">
