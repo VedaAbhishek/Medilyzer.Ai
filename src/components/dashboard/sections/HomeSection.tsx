@@ -3,7 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import TrendsChart from "@/components/dashboard/TrendsChart";
-import { Printer, Pill, TrendingUp, TrendingDown, Minus, FileText } from "lucide-react";
+import { Printer, Pill, TrendingUp, TrendingDown, Minus, FileText, UserPen } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface Marker {
   name: string;
@@ -80,6 +81,7 @@ const getTrendDirection = (name: string, trends: TrendPoint[]) => {
 
 const HomeSection = ({ patient, profileName, markers, trends, summary, hasReports, loading, medications }: HomeSectionProps) => {
   const age = computeAge(patient?.dob);
+  const navigate = useNavigate();
   const trendMarkers = [...new Set(trends.map(t => t.name))].filter(name =>
     trends.filter(t => t.name === name).length > 1
   );
@@ -145,10 +147,16 @@ const HomeSection = ({ patient, profileName, markers, trends, summary, hasReport
               </div>
             </div>
 
-            <Button onClick={handlePrint} className="gap-2 shrink-0 self-start print:hidden">
-              <Printer className="h-4 w-4" />
-              Share with Doctor
-            </Button>
+            <div className="flex gap-3 shrink-0 self-start print:hidden">
+              <Button variant="outline" onClick={() => navigate("/setup-profile")} className="gap-2">
+                <UserPen className="h-4 w-4" />
+                Edit Profile
+              </Button>
+              <Button onClick={handlePrint} className="gap-2">
+                <Printer className="h-4 w-4" />
+                Share with Doctor
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
