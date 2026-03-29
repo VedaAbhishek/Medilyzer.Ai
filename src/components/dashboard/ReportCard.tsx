@@ -53,6 +53,8 @@ interface MarkerInfo {
   value: number;
   unit: string | null;
   status: string | null;
+  ref_min: number | null;
+  ref_max: number | null;
 }
 
 interface MedInfo {
@@ -98,7 +100,7 @@ const ReportCard = ({ report, patientId, onDeleteComplete }: ReportCardProps) =>
     const fetchDetails = async () => {
       const [summRes, markRes, medRes] = await Promise.all([
         supabase.from("summaries").select("plain_text").eq("record_id", report.id).limit(1),
-        supabase.from("markers").select("name, value, unit, status").eq("record_id", report.id),
+        supabase.from("markers").select("name, value, unit, status, ref_min, ref_max").eq("record_id", report.id),
         supabase.from("medications").select("name, dosage").eq("patient_id", patientId),
       ]);
       setSummary(summRes.data?.[0]?.plain_text || null);
@@ -259,9 +261,16 @@ const ReportCard = ({ report, patientId, onDeleteComplete }: ReportCardProps) =>
                   <div key={i} className="flex items-center justify-between gap-2">
                     <span className="text-sm text-foreground">{friendlyName(m.name)}</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-foreground">
-                        {m.value} {m.unit || ""}
-                      </span>
+                      <div className="text-right">
+                        <span className="text-sm font-medium text-foreground">
+                          {m.value} {m.unit || ""}
+                        </span>
+                        {m.ref_min != null && m.ref_max != null && (
+                          <p className="text-xs text-muted-foreground">
+                            Normal range: {m.ref_min} – {m.ref_max} {m.unit || ""}
+                          </p>
+                        )}
+                      </div>
                       {statusBadge(m.status)}
                     </div>
                   </div>

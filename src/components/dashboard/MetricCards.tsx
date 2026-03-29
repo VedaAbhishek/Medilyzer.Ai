@@ -6,6 +6,8 @@ interface Marker {
   value: number;
   unit: string | null;
   status: string | null;
+  ref_min: number | null;
+  ref_max: number | null;
 }
 
 interface MetricCardsProps {
@@ -86,6 +88,11 @@ const MetricCards = ({ markers, loading }: MetricCardsProps) => {
                 {m.value}{" "}
                 <span className="text-base font-normal text-muted-foreground">{m.unit}</span>
               </p>
+              {m.ref_min != null && m.ref_max != null && (
+                <p className="text-sm text-muted-foreground">
+                  Normal range: {m.ref_min} – {m.ref_max} {m.unit || ""}
+                </p>
+              )}
               <div
                 className={`inline-flex items-center rounded-full border px-4 py-1.5 text-sm font-semibold ${config.className}`}
               >
