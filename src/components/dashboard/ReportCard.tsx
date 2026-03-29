@@ -144,6 +144,7 @@ const ReportCard = ({ report, patientId, onDeleteComplete }: ReportCardProps) =>
       if (storagePath) {
         await supabase.storage.from("medical-records").remove([storagePath]);
       }
+      await supabase.from("medications").delete().eq("record_id", report.id);
       await supabase.from("markers").delete().eq("record_id", report.id);
       await supabase.from("summaries").delete().eq("record_id", report.id);
       await supabase.from("medical_records").delete().eq("id", report.id);
