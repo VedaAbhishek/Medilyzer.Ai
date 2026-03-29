@@ -106,6 +106,19 @@ const TrendsChart = ({ trends, markers }: TrendsChartProps) => {
     return a.isNormal ? 1 : -1;
   });
 
+  if (cards.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <p className="text-base text-muted-foreground">
+            Upload more reports over time and we will show you how your health is changing.
+            Trends appear when you have results from at least 2 different visits.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {cards.map((c) => (
