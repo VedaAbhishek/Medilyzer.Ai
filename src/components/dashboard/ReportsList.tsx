@@ -43,6 +43,7 @@ const ReportsList = ({ patientId, onDeleteComplete }: ReportsListProps) => {
   const [loading, setLoading] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [viewReport, setViewReport] = useState<Report | null>(null);
 
   const fetchReports = async () => {
     if (!patientId) return;
