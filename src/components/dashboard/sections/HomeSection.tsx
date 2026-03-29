@@ -67,18 +67,6 @@ const computeAge = (dob: string | null | undefined): string | null => {
   return `${age} years old`;
 };
 
-const getTrendDirection = (name: string, trends: TrendPoint[]) => {
-  const points = trends.filter(t => t.name === name).sort((a, b) => a.date.localeCompare(b.date));
-  if (points.length < 2) return null;
-  const last = points[points.length - 1].value;
-  const prev = points[points.length - 2].value;
-  const diff = last - prev;
-  const pct = Math.abs(diff / (prev || 1)) * 100;
-  if (pct < 3) return "stable";
-  // For most markers, lower = declining, higher = increasing
-  // Status-aware: if status is "low", going down is bad; if "high", going up is bad
-  return diff > 0 ? "up" : "down";
-};
 
 const HomeSection = ({ patient, profileName, markers, trends, summary, hasReports, loading, medications }: HomeSectionProps) => {
   const age = computeAge(patient?.dob);
