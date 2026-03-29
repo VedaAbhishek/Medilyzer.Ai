@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import TrendsChart from "@/components/dashboard/TrendsChart";
 import HealthRing from "@/components/dashboard/HealthRing";
-import { Printer, Pill, TrendingUp, TrendingDown, Minus, FileText, UserPen } from "lucide-react";
+import { Printer, Pill, FileText, UserPen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface Marker {
@@ -67,25 +67,10 @@ const computeAge = (dob: string | null | undefined): string | null => {
   return `${age} years old`;
 };
 
-const getTrendDirection = (name: string, trends: TrendPoint[]) => {
-  const points = trends.filter(t => t.name === name).sort((a, b) => a.date.localeCompare(b.date));
-  if (points.length < 2) return null;
-  const last = points[points.length - 1].value;
-  const prev = points[points.length - 2].value;
-  const diff = last - prev;
-  const pct = Math.abs(diff / (prev || 1)) * 100;
-  if (pct < 3) return "stable";
-  // For most markers, lower = declining, higher = increasing
-  // Status-aware: if status is "low", going down is bad; if "high", going up is bad
-  return diff > 0 ? "up" : "down";
-};
 
 const HomeSection = ({ patient, profileName, markers, trends, summary, hasReports, loading, medications }: HomeSectionProps) => {
   const age = computeAge(patient?.dob);
   const navigate = useNavigate();
-  const trendMarkers = [...new Set(trends.map(t => t.name))].filter(name =>
-    trends.filter(t => t.name === name).length > 1
-  );
 
   const handlePrint = () => window.print();
 
@@ -183,39 +168,11 @@ const HomeSection = ({ patient, profileName, markers, trends, summary, hasReport
       <div className="space-y-5">
         <h2 className="text-2xl font-bold text-foreground">How Your Results Are Trending</h2>
         {trends.length > 0 ? (
-          <>
-            <TrendsChart trends={trends} />
-            {trendMarkers.length > 0 && (
-              <Card>
-                <CardContent className="p-6">
-                  <div className="space-y-3">
-                    {trendMarkers.map(name => {
-                      const direction = getTrendDirection(name, trends);
-                      const latest = trends.filter(t => t.name === name).sort((a, b) => b.date.localeCompare(a.date))[0];
-                      const marker = markers.find(m => m.name === name);
-                      return (
-                        <div key={name} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                          <span className="text-base font-medium text-foreground">{getFriendlyName(name)}</span>
-                          <div className="flex items-center gap-3">
-                            {direction === "up" && <TrendingUp className="h-5 w-5 text-emerald-600" />}
-                            {direction === "down" && <TrendingDown className="h-5 w-5 text-red-600" />}
-                            {direction === "stable" && <Minus className="h-5 w-5 text-muted-foreground" />}
-                            <span className="text-base font-semibold text-foreground">
-                              {latest?.value} <span className="text-sm font-normal text-muted-foreground">{marker?.unit || ""}</span>
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </>
+          <TrendsChart trends={trends} markers={markers} />
         ) : (
           <Card>
             <CardContent className="p-8 text-center">
-              <p className="text-base text-muted-foreground">Upload lab reports to see your trends.</p>
+              <p className="text-base text-muted-foreground">Upload reports over time to see how your health is trending.</p>
             </CardContent>
           </Card>
         )}
