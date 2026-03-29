@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import TrendsChart from "@/components/dashboard/TrendsChart";
+import HealthRing from "@/components/dashboard/HealthRing";
 import MedicationSchedule from "@/components/dashboard/MedicationSchedule";
 import { Printer, FileText, UserPen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
