@@ -54,11 +54,14 @@ const TrendsChart = ({ trends, markers }: TrendsChartProps) => {
 
   const markerNames = [...new Set(trends.map((t) => t.name))];
 
-  // Build per-marker data
+  // Only include markers with 2+ data points on different dates
   const cards = markerNames.map((name) => {
     const points = trends
       .filter((t) => t.name === name)
       .sort((a, b) => a.date.localeCompare(b.date));
+    const uniqueDates = new Set(points.map((p) => p.date));
+    return { name, points, uniqueDates: uniqueDates.size };
+  }).filter((c) => c.uniqueDates >= 2).map(({ name, points }) => {
     const markerInfo = markers.find(
       (m) => m.name.toLowerCase() === name.toLowerCase()
     );
@@ -102,6 +105,19 @@ const TrendsChart = ({ trends, markers }: TrendsChartProps) => {
     if (a.isNormal === b.isNormal) return 0;
     return a.isNormal ? 1 : -1;
   });
+
+  if (cards.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <p className="text-base text-muted-foreground">
+            Upload more reports over time and we will show you how your health is changing.
+            Trends appear when you have results from at least 2 different visits.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -206,9 +222,6 @@ const TrendsChart = ({ trends, markers }: TrendsChartProps) => {
                     <Minus className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="text-muted-foreground">Stable</span>
                   </>
-                )}
-                {c.trend === "insufficient" && (
-                  <span className="text-muted-foreground">Not enough data</span>
                 )}
               </div>
             </div>
