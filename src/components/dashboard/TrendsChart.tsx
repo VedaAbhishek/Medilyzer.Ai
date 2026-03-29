@@ -57,7 +57,6 @@ const TrendsChart = ({ trends }: TrendsChartProps) => {
 
   return (
     <div className="space-y-5">
-      <h2 className="text-2xl font-bold text-foreground">How My Results Are Changing</h2>
       <Card>
         <CardContent className="p-6">
           <ResponsiveContainer width="100%" height={300}>

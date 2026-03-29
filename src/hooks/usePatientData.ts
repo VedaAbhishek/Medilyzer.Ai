@@ -7,6 +7,8 @@ interface Marker {
   value: number;
   unit: string | null;
   status: string | null;
+  ref_min: number | null;
+  ref_max: number | null;
 }
 
 interface TrendPoint {
@@ -75,7 +77,7 @@ export function usePatientData() {
       // Fetch latest markers (deduplicated by name)
       const { data: markerRows } = await supabase
         .from("markers")
-        .select("name, value, unit, status, date")
+        .select("name, value, unit, status, date, ref_min, ref_max")
         .eq("patient_id", patientRow.id)
         .order("date", { ascending: false })
         .limit(50);
@@ -86,7 +88,7 @@ export function usePatientData() {
         for (const m of markerRows) {
           if (!seen.has(m.name)) {
             seen.add(m.name);
-            latest.push({ name: m.name, value: Number(m.value), unit: m.unit, status: m.status });
+            latest.push({ name: m.name, value: Number(m.value), unit: m.unit, status: m.status, ref_min: m.ref_min ? Number(m.ref_min) : null, ref_max: m.ref_max ? Number(m.ref_max) : null });
           }
         }
         setMarkers(latest);
