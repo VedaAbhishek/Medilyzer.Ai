@@ -53,6 +53,8 @@ interface MarkerInfo {
   value: number;
   unit: string | null;
   status: string | null;
+  ref_min: number | null;
+  ref_max: number | null;
 }
 
 interface MedInfo {
