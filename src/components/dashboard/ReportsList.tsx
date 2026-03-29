@@ -142,22 +142,36 @@ const ReportsList = ({ patientId, onDeleteComplete }: ReportsListProps) => {
                 <div className="flex items-center gap-3 min-w-0">
                   <FileText className="h-5 w-5 shrink-0 text-primary" />
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">
+                    <button
+                      className="text-sm font-medium truncate text-left hover:text-primary hover:underline transition-colors cursor-pointer block"
+                      onClick={() => setViewReport(report)}
+                    >
                       {getFileName(report.file_url)}
-                    </p>
+                    </button>
                     <p className="text-xs text-muted-foreground">
                       {formatDate(report.upload_date)}
                     </p>
                   </div>
                   {typeBadge(report.type)}
                 </div>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setDeleteId(report.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-primary border-primary hover:bg-primary/10"
+                    onClick={() => setViewReport(report)}
+                  >
+                    <Eye className="h-4 w-4" />
+                    View
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setDeleteId(report.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
