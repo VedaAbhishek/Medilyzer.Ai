@@ -27,14 +27,13 @@ const Landing = () => {
       {/* HERO */}
       <section className="py-20 md:py-28 px-6">
         <div className="max-w-3xl mx-auto text-center">
-          <h1 className="text-3xl md:text-[48px] font-bold leading-tight text-foreground">
-            <span className="block">Your doctor explains in their language.</span>
-            <span className="block mt-2">Google explains too much.</span>
-            <span className="block mt-2">Medilyzer explains it right.</span>
+          <h1>
+            <span className="block text-[28px] md:text-[36px] font-normal leading-snug text-foreground/80">Your doctor explains in their language.</span>
+            <span className="block text-[28px] md:text-[36px] font-normal leading-snug text-foreground/80 mt-2">Google explains too much.</span>
+            <span className="block text-[32px] md:text-[42px] font-bold leading-snug text-primary mt-3">Medilyzer explains it right.</span>
           </h1>
-          <p className="mt-8 text-lg md:text-xl text-muted-foreground leading-relaxed">
-            Stop guessing about your health.<br />
-            Start understanding it.
+          <p className="mt-8 text-lg text-muted-foreground">
+            Stop guessing about your health. Start understanding it.
           </p>
           <Link
             to="/signup"
@@ -45,6 +44,7 @@ const Landing = () => {
           <p className="mt-4 text-sm text-muted-foreground">
             No credit card required. No medical knowledge needed.
           </p>
+          <div className="mt-12 border-t border-border/50" />
         </div>
       </section>
 
