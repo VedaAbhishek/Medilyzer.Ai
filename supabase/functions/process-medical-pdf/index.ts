@@ -167,6 +167,7 @@ Deno.serve(async (req) => {
     // Save medications
     const meds = (extraction.medications || []).map((m: any) => ({
       patient_id,
+      record_id: recordId,
       name: m.name,
       dosage: m.dosage || null,
       frequency: m.frequency || null,

@@ -181,6 +181,7 @@ export type Database = {
           id: string
           name: string
           patient_id: string
+          record_id: string | null
           start_date: string | null
         }
         Insert: {
@@ -190,6 +191,7 @@ export type Database = {
           id?: string
           name: string
           patient_id: string
+          record_id?: string | null
           start_date?: string | null
         }
         Update: {
@@ -199,6 +201,7 @@ export type Database = {
           id?: string
           name?: string
           patient_id?: string
+          record_id?: string | null
           start_date?: string | null
         }
         Relationships: [
@@ -207,6 +210,13 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medications_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "medical_records"
             referencedColumns: ["id"]
           },
         ]

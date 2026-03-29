@@ -90,7 +90,7 @@ const TestResultsSection = ({ patientId }: TestResultsSectionProps) => {
       setLoadingDetails(true);
       const [{ data: mkrs }, { data: meds }] = await Promise.all([
         supabase.from("markers").select("name, value, unit, status, ref_min, ref_max, date, record_id").eq("record_id", selectedReportId),
-        supabase.from("medications").select("name, dosage").eq("patient_id", patientId),
+        supabase.from("medications").select("name, dosage").eq("record_id", selectedReportId),
       ]);
       setReportMarkers((mkrs || []).map(m => ({ ...m, value: Number(m.value), ref_min: m.ref_min ? Number(m.ref_min) : null, ref_max: m.ref_max ? Number(m.ref_max) : null })));
       setReportMedications(meds || []);
