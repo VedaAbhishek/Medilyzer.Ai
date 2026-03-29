@@ -100,7 +100,7 @@ const ReportCard = ({ report, patientId, onDeleteComplete }: ReportCardProps) =>
     const fetchDetails = async () => {
       const [summRes, markRes, medRes] = await Promise.all([
         supabase.from("summaries").select("plain_text").eq("record_id", report.id).limit(1),
-        supabase.from("markers").select("name, value, unit, status").eq("record_id", report.id),
+        supabase.from("markers").select("name, value, unit, status, ref_min, ref_max").eq("record_id", report.id),
         supabase.from("medications").select("name, dosage").eq("patient_id", patientId),
       ]);
       setSummary(summRes.data?.[0]?.plain_text || null);
