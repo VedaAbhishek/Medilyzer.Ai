@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import TrendsChart from "@/components/dashboard/TrendsChart";
 import HealthRing from "@/components/dashboard/HealthRing";
-import { Printer, Pill, TrendingUp, TrendingDown, Minus, FileText, UserPen } from "lucide-react";
+import { Printer, Pill, FileText, UserPen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface Marker {
