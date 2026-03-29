@@ -47,7 +47,7 @@ export function usePatientData() {
     // Get or create patient record
     let { data: patientRow } = await supabase
       .from("patients")
-      .select("id, name, blood_type, conditions, allergies")
+      .select("id, name, blood_type, conditions, allergies, dob")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -55,7 +55,7 @@ export function usePatientData() {
       const { data: newPatient } = await supabase
         .from("patients")
         .insert({ user_id: user.id, name: user.user_metadata?.name || "Patient" })
-        .select("id, name, blood_type, conditions, allergies")
+        .select("id, name, blood_type, conditions, allergies, dob")
         .single();
       patientRow = newPatient;
     }
@@ -103,6 +103,13 @@ export function usePatientData() {
         setTrends([]);
       }
 
+      // Fetch medications
+      const { data: medRows } = await supabase
+        .from("medications")
+        .select("name, dosage")
+        .eq("patient_id", patientRow.id);
+      setMedications(medRows || []);
+
       // Fetch latest summary
       const { data: summaryRows } = await supabase
         .from("summaries")
@@ -121,5 +128,5 @@ export function usePatientData() {
     fetchData();
   }, [fetchData]);
 
-  return { patientId, patient, markers, trends, summary, hasReports, loading, refetch: fetchData };
+  return { patientId, patient, markers, trends, summary, hasReports, loading, medications, refetch: fetchData };
 }
