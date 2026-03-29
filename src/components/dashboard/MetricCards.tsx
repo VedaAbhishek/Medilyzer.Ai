@@ -21,16 +21,7 @@ const statusColor: Record<string, string> = {
   critical: "bg-red-200 text-red-800 hover:bg-red-200",
 };
 
-const dummyMarkers: Marker[] = [
-  { name: "Hemoglobin", value: 11.2, unit: "g/dL", status: "low" },
-  { name: "Blood Glucose", value: 98, unit: "mg/dL", status: "normal" },
-  { name: "Vitamin B12", value: 186, unit: "pg/mL", status: "low" },
-  { name: "TSH", value: 3.1, unit: "mIU/L", status: "normal" },
-];
-
 const MetricCards = ({ markers, loading }: MetricCardsProps) => {
-  const display = markers.length > 0 ? markers.slice(0, 8) : dummyMarkers;
-
   if (loading) {
     return (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -47,9 +38,11 @@ const MetricCards = ({ markers, loading }: MetricCardsProps) => {
     );
   }
 
+  if (markers.length === 0) return null;
+
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      {display.map((m) => {
+      {markers.slice(0, 8).map((m) => {
         const status = (m.status || "normal").toLowerCase();
         return (
           <Card key={m.name}>
