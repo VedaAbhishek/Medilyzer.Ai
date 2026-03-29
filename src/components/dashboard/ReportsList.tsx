@@ -194,6 +194,41 @@ const ReportsList = ({ patientId, onDeleteComplete }: ReportsListProps) => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!viewReport} onOpenChange={(open) => !open && setViewReport(null)}>
+        <DialogContent className="max-w-[80vw] w-[80vw] h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>{viewReport ? getFileName(viewReport.file_url) : ""}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0">
+            {viewReport?.file_url && (
+              <iframe
+                src={viewReport.file_url}
+                className="w-full h-full rounded border"
+                title="PDF Viewer"
+              />
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="text-primary border-primary hover:bg-primary/10"
+              onClick={() => {
+                if (viewReport?.file_url) {
+                  const a = document.createElement("a");
+                  a.href = viewReport.file_url;
+                  a.download = getFileName(viewReport.file_url);
+                  a.target = "_blank";
+                  a.click();
+                }
+              }}
+            >
+              <Download className="h-4 w-4" />
+              Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
