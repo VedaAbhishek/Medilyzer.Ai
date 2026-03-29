@@ -10,6 +10,8 @@ interface Marker {
   value: number;
   unit: string | null;
   status: string | null;
+  ref_min: number | null;
+  ref_max: number | null;
 }
 
 interface TrendPoint {
@@ -243,9 +245,16 @@ const HomeSection = ({ patient, profileName, markers, trends, summary, hasReport
                     <div key={m.name} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                       <span className="text-base font-medium text-foreground">{getFriendlyName(m.name)}</span>
                       <div className="flex items-center gap-3">
-                        <span className="text-base font-semibold text-foreground">
-                          {m.value} <span className="text-sm font-normal text-muted-foreground">{m.unit}</span>
-                        </span>
+                        <div className="text-right">
+                          <span className="text-base font-semibold text-foreground">
+                            {m.value} <span className="text-sm font-normal text-muted-foreground">{m.unit}</span>
+                          </span>
+                          {m.ref_min != null && m.ref_max != null && (
+                            <p className="text-xs text-muted-foreground">
+                              Normal range: {m.ref_min} – {m.ref_max} {m.unit || ""}
+                            </p>
+                          )}
+                        </div>
                         <div className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${config.className}`}>
                           {config.label}
                         </div>

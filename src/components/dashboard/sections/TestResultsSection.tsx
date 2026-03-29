@@ -1,7 +1,7 @@
 import MetricCards from "@/components/dashboard/MetricCards";
 
 interface TestResultsSectionProps {
-  markers: { name: string; value: number; unit: string | null; status: string | null }[];
+  markers: { name: string; value: number; unit: string | null; status: string | null; ref_min: number | null; ref_max: number | null }[];
   loading: boolean;
 }
 
