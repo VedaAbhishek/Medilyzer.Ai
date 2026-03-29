@@ -1,9 +1,16 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Pill, Loader2, AlertTriangle } from "lucide-react";
+import { Pill, Loader2, AlertTriangle, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from "@/components/ui/dialog";
 
 interface Medication {
   id: string;
@@ -45,7 +52,7 @@ const MedicationsList = ({ patientId }: MedicationsListProps) => {
   const [loading, setLoading] = useState(true);
   const [descriptions, setDescriptions] = useState<Record<string, DrugDescription>>({});
   const [loadingId, setLoadingId] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [modalMed, setModalMed] = useState<Medication | null>(null);
 
   useEffect(() => {
     if (!patientId) return;
@@ -62,19 +69,11 @@ const MedicationsList = ({ patientId }: MedicationsListProps) => {
   }, [patientId]);
 
   const handleDescribe = async (med: Medication) => {
-    if (expandedId === med.id) {
-      setExpandedId(null);
-      return;
-    }
+    setModalMed(med);
 
-    if (descriptions[med.id]) {
-      setExpandedId(med.id);
-      return;
-    }
+    if (descriptions[med.id]) return;
 
     setLoadingId(med.id);
-    setExpandedId(med.id);
-
     try {
       const { data: existing } = await supabase
         .from("drug_descriptions")
@@ -102,7 +101,7 @@ const MedicationsList = ({ patientId }: MedicationsListProps) => {
     } catch (err: any) {
       console.error(err);
       toast({ title: "Could not get explanation", description: err.message, variant: "destructive" });
-      setExpandedId(null);
+      setModalMed(null);
     } finally {
       setLoadingId(null);
     }
@@ -110,21 +109,20 @@ const MedicationsList = ({ patientId }: MedicationsListProps) => {
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-3 text-xl">
-            <Pill className="h-6 w-6 text-primary" />
-            My Medications
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-base text-muted-foreground">Loading your medications…</p>
-        </CardContent>
-      </Card>
+      <div className="space-y-5">
+        <h2 className="text-2xl font-bold text-foreground flex items-center gap-3">
+          <Pill className="h-7 w-7 text-primary" />
+          My Medications
+        </h2>
+        <p className="text-base text-muted-foreground">Loading your medications…</p>
+      </div>
     );
   }
 
   if (medications.length === 0) return null;
+
+  const desc = modalMed ? descriptions[modalMed.id] : null;
+  const isModalLoading = modalMed ? loadingId === modalMed.id : false;
 
   return (
     <div className="space-y-5">
@@ -133,109 +131,105 @@ const MedicationsList = ({ patientId }: MedicationsListProps) => {
         My Medications
       </h2>
 
-      <div className="space-y-4">
-        {medications.map((med) => {
-          const desc = descriptions[med.id];
-          const isExpanded = expandedId === med.id;
-          const isLoading = loadingId === med.id;
+      {/* Tile grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {medications.map((med) => (
+          <Card
+            key={med.id}
+            className="flex flex-col items-center text-center border-border"
+          >
+            <CardContent className="flex flex-col items-center justify-between p-6 h-full w-full space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <Pill className="h-7 w-7 text-primary" />
+              </div>
 
-          return (
-            <Card key={med.id} className="overflow-hidden">
-              <CardContent className="p-0">
-                {/* Main medication info */}
-                <div className="flex items-start gap-5 p-6">
-                  <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0 mt-1">
-                    <Pill className="h-7 w-7 text-primary" />
-                  </div>
-                  <div className="flex-1 space-y-1">
-                    <p className="text-lg font-bold text-foreground">{med.name}</p>
-                    <p className="text-base text-muted-foreground">
-                      {[med.dosage, friendlyFrequency(med.frequency)]
-                        .filter(Boolean)
-                        .join(" · ") || "No dosage information available"}
-                    </p>
-                  </div>
-                </div>
+              <div className="space-y-1 flex-1">
+                <p className="text-lg font-bold text-foreground">{med.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {[med.dosage, friendlyFrequency(med.frequency)]
+                    .filter(Boolean)
+                    .join(" · ") || "No dosage info"}
+                </p>
+              </div>
 
-                {/* Action button */}
-                <div className="px-6 pb-6">
-                  <Button
-                    onClick={() => handleDescribe(med)}
-                    disabled={isLoading}
-                    className="w-full text-base py-6 font-semibold"
-                    variant={isExpanded ? "secondary" : "default"}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                        Getting explanation…
-                      </>
-                    ) : isExpanded ? (
-                      "Hide explanation"
-                    ) : (
-                      "Explain this medication to me"
-                    )}
-                  </Button>
-                </div>
-
-                {/* Loading state */}
-                {isExpanded && isLoading && (
-                  <div className="px-6 pb-6">
-                    <div className="rounded-xl bg-[hsl(var(--warm-yellow))] border border-[hsl(var(--warm-yellow-border))] p-6">
-                      <div className="flex items-center gap-3 text-base text-muted-foreground">
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        Writing a simple explanation for you…
-                      </div>
-                    </div>
-                  </div>
+              <Button
+                onClick={() => handleDescribe(med)}
+                disabled={loadingId === med.id}
+                size="sm"
+                className="text-sm font-semibold px-5"
+              >
+                {loadingId === med.id ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                    Loading…
+                  </>
+                ) : (
+                  "Explain this to me"
                 )}
-
-                {/* Expanded description */}
-                {isExpanded && desc && (
-                  <div className="px-6 pb-6">
-                    <div className="rounded-xl bg-[hsl(var(--warm-yellow))] border border-[hsl(var(--warm-yellow-border))] p-6 space-y-5">
-                      {desc.plain_description && (
-                        <p className="text-base text-foreground leading-relaxed">
-                          {desc.plain_description}
-                        </p>
-                      )}
-
-                      {desc.side_effects && (
-                        <div className="space-y-2">
-                          <p className="text-base font-semibold text-foreground">
-                            Possible side effects:
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {desc.side_effects.split(", ").map((se, i) => (
-                              <span
-                                key={i}
-                                className="inline-flex items-center rounded-full bg-background border px-4 py-1.5 text-sm font-medium text-foreground"
-                              >
-                                {se}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {desc.avoid && (
-                        <div className="flex items-start gap-3">
-                          <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
-                          <p className="text-base text-foreground">{desc.avoid}</p>
-                        </div>
-                      )}
-
-                      <p className="text-sm text-muted-foreground italic pt-2 border-t">
-                        Always consult your doctor before making any changes to your medication.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
       </div>
+
+      {/* Explanation modal */}
+      <Dialog open={!!modalMed} onOpenChange={(open) => !open && setModalMed(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-foreground">
+              {modalMed?.name}
+            </DialogTitle>
+          </DialogHeader>
+
+          {isModalLoading && (
+            <div className="flex items-center gap-3 py-8 justify-center text-base text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Writing a simple explanation…
+            </div>
+          )}
+
+          {desc && (
+            <div className="space-y-5 py-2">
+              {desc.plain_description && (
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-primary">What it does</p>
+                  <p className="text-base text-foreground leading-relaxed">{desc.plain_description}</p>
+                </div>
+              )}
+
+              {desc.side_effects && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-primary">Side effects</p>
+                  <div className="flex flex-wrap gap-2">
+                    {desc.side_effects.split(", ").map((se, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center rounded-full bg-secondary border border-border px-3 py-1 text-sm text-foreground"
+                      >
+                        {se}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {desc.avoid && (
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-primary">What to avoid</p>
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                    <p className="text-base text-foreground">{desc.avoid}</p>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-sm text-muted-foreground italic pt-3 border-t">
+                Always consult your doctor before making any changes to your medication.
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
