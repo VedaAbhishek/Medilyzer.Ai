@@ -71,9 +71,6 @@ const computeAge = (dob: string | null | undefined): string | null => {
 const HomeSection = ({ patient, profileName, markers, trends, summary, hasReports, loading, medications }: HomeSectionProps) => {
   const age = computeAge(patient?.dob);
   const navigate = useNavigate();
-  const trendMarkers = [...new Set(trends.map(t => t.name))].filter(name =>
-    trends.filter(t => t.name === name).length > 1
-  );
 
   const handlePrint = () => window.print();
 
