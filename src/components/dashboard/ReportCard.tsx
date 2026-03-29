@@ -144,14 +144,19 @@ const ReportCard = ({ report, patientId, onDeleteComplete }: ReportCardProps) =>
       if (storagePath) {
         await supabase.storage.from("medical-records").remove([storagePath]);
       }
-      await supabase.from("medications").delete().eq("record_id", report.id);
-      await supabase.from("markers").delete().eq("record_id", report.id);
-      await supabase.from("summaries").delete().eq("record_id", report.id);
-      await supabase.from("medical_records").delete().eq("id", report.id);
+      const { error: medErr } = await supabase.from("medications").delete().eq("record_id", report.id);
+      if (medErr) throw medErr;
+      const { error: markErr } = await supabase.from("markers").delete().eq("record_id", report.id);
+      if (markErr) throw markErr;
+      const { error: sumErr } = await supabase.from("summaries").delete().eq("record_id", report.id);
+      if (sumErr) throw sumErr;
+      const { error: recErr } = await supabase.from("medical_records").delete().eq("id", report.id);
+      if (recErr) throw recErr;
       toast({ title: "Report deleted successfully" });
       setShowDeleteConfirm(false);
       onDeleteComplete();
     } catch (err: any) {
+      console.error("Delete error:", err);
       toast({ title: "Delete failed", description: err.message, variant: "destructive" });
     } finally {
       setDeleting(false);
