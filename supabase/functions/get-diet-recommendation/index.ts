@@ -23,21 +23,20 @@ serve(async (req) => {
 
     const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    const { data: abnormalMarkers } = await sb
+    const { data: allMarkers } = await sb
       .from("markers")
-      .select("name, value, unit, status, date")
+      .select("name, value, unit, status, ref_min, ref_max, date")
       .eq("patient_id", patient_id)
-      .in("status", ["low", "high", "Low", "High"])
       .order("date", { ascending: false })
-      .limit(20);
+      .limit(50);
 
     const { data: meds } = await sb
       .from("medications")
       .select("name, dosage, frequency")
       .eq("patient_id", patient_id);
 
-    if ((!abnormalMarkers || abnormalMarkers.length === 0) && (!meds || meds.length === 0)) {
-      return new Response(JSON.stringify({ foods_to_eat: [], foods_to_avoid: [] }), {
+    if ((!allMarkers || allMarkers.length === 0) && (!meds || meds.length === 0)) {
+      return new Response(JSON.stringify({ deficiencies: [], foods_to_eat: [], foods_to_avoid: [], meal_plan: {} }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -45,29 +44,41 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const patientData = JSON.stringify({ abnormal_markers: abnormalMarkers, medications: meds });
+    const prompt = `Based on this patient's lab results and medications, generate a personalised food guide.
 
-    const prompt = `A patient has these abnormal lab results and medications. Generate two lists of specific foods.
+Return ONLY valid JSON:
+{
+  "deficiencies": [
+    { "nutrient": "string", "level": "string e.g. Hb 11.2", "severity": "low or medium or high" }
+  ],
+  "foods_to_eat": [
+    { "emoji": "string", "name": "string", "reason": "string max 5 words", "nutrients": ["string"], "serving": "string e.g. 80-100g" }
+  ],
+  "foods_to_avoid": [
+    { "emoji": "string", "name": "string", "reason": "string max 5 words", "nutrients": ["string"] }
+  ],
+  "meal_plan": {
+    "monday": { "breakfast": "string", "lunch": "string", "snack": "string", "dinner": "string" },
+    "tuesday": { "breakfast": "string", "lunch": "string", "snack": "string", "dinner": "string" },
+    "wednesday": { "breakfast": "string", "lunch": "string", "snack": "string", "dinner": "string" },
+    "thursday": { "breakfast": "string", "lunch": "string", "snack": "string", "dinner": "string" },
+    "friday": { "breakfast": "string", "lunch": "string", "snack": "string", "dinner": "string" },
+    "saturday": { "breakfast": "string", "lunch": "string", "snack": "string", "dinner": "string" },
+    "sunday": { "breakfast": "string", "lunch": "string", "snack": "string", "dinner": "string" }
+  }
+}
 
 RULES:
 - Use everyday food names only. No medical terms. No jargon.
-- Each reason must be EXACTLY 5 words or fewer in plain English. Examples: "Boosts your B12 levels", "Helps lower blood sugar", "Good for your liver"
+- Each reason must be EXACTLY 5 words or fewer in plain English.
 - Pick a single relevant food emoji for each item
 - Include 8-12 foods in each list
-- Do NOT use terms like "hepatoprotective", "anti-inflammatory", "polyphenols", "ALT", "AST", "CRP", "ESR", "TSH"
-- Use words like "blood sugar" not "glucose", "thyroid" not "TSH", "liver health" not "hepatic function"
+- Base all recommendations strictly on the patient's actual lab data
+- Do not invent deficiencies not present in the data
+- Use only foods from credible nutrition sources
 
-Return ONLY valid JSON in this exact format:
-{
-  "foods_to_eat": [
-    { "emoji": "🥦", "name": "Broccoli", "reason": "Helps lower blood sugar" }
-  ],
-  "foods_to_avoid": [
-    { "emoji": "🍩", "name": "Donuts", "reason": "Spikes your blood sugar" }
-  ]
-}
-
-Patient data: ${patientData}`;
+Patient markers: ${JSON.stringify(allMarkers)}
+Patient medications: ${JSON.stringify(meds)}`;
 
     const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

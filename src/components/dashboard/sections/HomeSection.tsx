@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -5,8 +6,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import TrendsChart from "@/components/dashboard/TrendsChart";
 import HealthRing from "@/components/dashboard/HealthRing";
 import MedicationSchedule from "@/components/dashboard/MedicationSchedule";
-import { Printer, FileText, UserPen } from "lucide-react";
+import { Printer, UserPen, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Marker {
   name: string;
@@ -69,12 +71,103 @@ const computeAge = (dob: string | null | undefined): string | null => {
   return `${age} years old`;
 };
 
-
-const HomeSection = ({ patient, profileName, markers, trends, summary, hasReports, loading, medications }: HomeSectionProps) => {
+const HomeSection = ({ patient, profileName, markers, trends, summary, hasReports, loading, patientId, medications }: HomeSectionProps) => {
   const age = computeAge(patient?.dob);
   const navigate = useNavigate();
+  const [trendsOpen, setTrendsOpen] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   const handlePrint = () => window.print();
+
+  // Generate AI health summary when markers are available
+  useEffect(() => {
+    if (!patientId || markers.length === 0) return;
+
+    const generateSummary = async () => {
+      // Check if we already have a recent summary
+      const { data: existing } = await supabase
+        .from("summaries")
+        .select("plain_text")
+        .eq("patient_id", patientId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (existing?.[0]?.plain_text) {
+        setAiSummary(existing[0].plain_text);
+        return;
+      }
+
+      setSummaryLoading(true);
+      try {
+        const { data: allMarkers } = await supabase
+          .from("markers")
+          .select("name, value, unit, status, ref_min, ref_max")
+          .eq("patient_id", patientId)
+          .order("date", { ascending: false })
+          .limit(50);
+
+        const { data: allMeds } = await supabase
+          .from("medications")
+          .select("name, dosage, frequency")
+          .eq("patient_id", patientId);
+
+        const { data, error } = await supabase.functions.invoke("ask-health-question", {
+          body: {
+            patient_id: patientId,
+            messages: [{
+              role: "user",
+              content: `Generate a health summary. Here is my data:\n\nMarkers: ${JSON.stringify(allMarkers || [])}\n\nMedications: ${JSON.stringify(allMeds || [])}\n\nWrite a clear and honest health summary based only on this data. Structure in 3 short paragraphs: 1) What looks good (normal results), 2) What needs attention (abnormal results only if they exist), 3) One general suggestion. Maximum 120 words. Do not end with "Remember to talk to your doctor about this." for this response.`
+            }],
+          },
+        });
+
+        // For streaming responses, read the stream
+        if (data instanceof ReadableStream) {
+          const reader = data.getReader();
+          const decoder = new TextDecoder();
+          let result = "";
+          let textBuffer = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            textBuffer += decoder.decode(value, { stream: true });
+
+            let idx: number;
+            while ((idx = textBuffer.indexOf("\n")) !== -1) {
+              let line = textBuffer.slice(0, idx);
+              textBuffer = textBuffer.slice(idx + 1);
+              if (line.endsWith("\r")) line = line.slice(0, -1);
+              if (!line.startsWith("data: ")) continue;
+              const jsonStr = line.slice(6).trim();
+              if (jsonStr === "[DONE]") break;
+              try {
+                const parsed = JSON.parse(jsonStr);
+                const content = parsed.choices?.[0]?.delta?.content;
+                if (content) result += content;
+              } catch { /* ignore */ }
+            }
+          }
+
+          if (result) {
+            setAiSummary(result);
+            // Cache it
+            await supabase.from("summaries").insert({
+              patient_id: patientId,
+              plain_text: result,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Summary generation failed:", err);
+      } finally {
+        setSummaryLoading(false);
+      }
+    };
+
+    generateSummary();
+  }, [patientId, markers.length]);
 
   if (loading) {
     return (
@@ -94,6 +187,8 @@ const HomeSection = ({ patient, profileName, markers, trends, summary, hasReport
       </div>
     );
   }
+
+  const displaySummary = aiSummary || summary;
 
   return (
     <div className="space-y-8 print:space-y-6">
@@ -156,32 +251,58 @@ const HomeSection = ({ patient, profileName, markers, trends, summary, hasReport
         </CardContent>
       </Card>
 
-      {/* SECTION 2 — Plain Language Summary */}
+      {/* SECTION 2 — AI Health Summary */}
       <Card className="border-l-4 border-l-primary">
         <CardContent className="p-8 space-y-3">
-          <h2 className="text-2xl font-bold text-foreground">Your Health Summary</h2>
-          <p className="text-lg leading-relaxed text-foreground">
-            {summary || "Upload a report to see your health summary."}
-          </p>
+          <h2 className="text-xl font-bold text-foreground">Your Overall Health Summary — Based on all your uploaded reports</h2>
+          {summaryLoading ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Generating your health summary...</span>
+            </div>
+          ) : (
+            <>
+              <div className="text-base leading-relaxed text-foreground whitespace-pre-line">
+                {displaySummary || "Upload a report to see your health summary."}
+              </div>
+              <p className="text-xs text-muted-foreground pt-2">
+                This summary is based only on your uploaded reports. Always consult your doctor for medical advice.
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
 
-      {/* SECTION 3 — Trends */}
-      <div className="space-y-5">
-        <h2 className="text-2xl font-bold text-foreground">How Your Results Are Trending</h2>
-        {trends.length > 0 ? (
-          <TrendsChart trends={trends} markers={markers} />
-        ) : (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <p className="text-base text-muted-foreground">Upload reports over time to see how your health is trending.</p>
-            </CardContent>
-          </Card>
+      {/* SECTION 3 — Trends (Collapsible) */}
+      <div className="space-y-0">
+        <button
+          onClick={() => setTrendsOpen(!trendsOpen)}
+          className="w-full flex items-center justify-between py-4 px-1 text-left"
+        >
+          <h2 className="text-2xl font-bold text-foreground">How Your Results Are Trending</h2>
+          {trendsOpen ? (
+            <ChevronUp className="h-6 w-6 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-6 w-6 text-muted-foreground" />
+          )}
+        </button>
+        {trendsOpen && (
+          <div className="pt-2">
+            {trends.length > 0 ? (
+              <TrendsChart trends={trends} markers={markers} />
+            ) : (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <p className="text-base text-muted-foreground">Upload reports over time to see how your health is trending.</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         )}
       </div>
 
       {/* SECTION 4 — Current Medications */}
-      <MedicationSchedule medications={medications} />
+      <MedicationSchedule medications={medications} patientId={patientId} />
 
       {/* SECTION 5 — Latest Test Results */}
       <div className="space-y-5">

@@ -1,17 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Pill, Sun, SunMedium, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 interface MedicationWithFreq {
   name: string;
   dosage: string | null;
   frequency: string | null;
+  id?: string;
 }
 
 interface MedicationScheduleProps {
   medications: MedicationWithFreq[];
+  patientId?: string | null;
 }
 
 type TimeSlot = "morning" | "noon" | "evening";
@@ -56,8 +59,71 @@ function parseFoodInstruction(freq: string | null, dosage: string | null): { lab
   return { label: "With or without food", className: "bg-muted text-muted-foreground border-border" };
 }
 
-const MedicationSchedule = ({ medications }: MedicationScheduleProps) => {
+const MedicationSchedule = ({ medications, patientId }: MedicationScheduleProps) => {
   const [openSlot, setOpenSlot] = useState<TimeSlot>("morning");
+  const [purposes, setPurposes] = useState<Record<string, string>>({});
+
+  // Fetch or generate one-line purposes for each medication
+  useEffect(() => {
+    if (!patientId || medications.length === 0) return;
+
+    const fetchPurposes = async () => {
+      // First check existing drug_descriptions for cached purposes
+      const { data: meds } = await supabase
+        .from("medications")
+        .select("id, name")
+        .eq("patient_id", patientId);
+
+      if (!meds || meds.length === 0) return;
+
+      const medMap = new Map<string, string>();
+      meds.forEach(m => medMap.set(m.name.toLowerCase(), m.id));
+
+      // Fetch existing descriptions
+      const medIds = meds.map(m => m.id);
+      const { data: existing } = await supabase
+        .from("drug_descriptions")
+        .select("medication_id, plain_description")
+        .in("medication_id", medIds);
+
+      const existingMap = new Map<string, string>();
+      const idToName = new Map<string, string>();
+      meds.forEach(m => idToName.set(m.id, m.name));
+
+      existing?.forEach(d => {
+        const name = idToName.get(d.medication_id);
+        if (name && d.plain_description) {
+          existingMap.set(name.toLowerCase(), d.plain_description);
+        }
+      });
+
+      // Set cached ones immediately
+      const cached: Record<string, string> = {};
+      existingMap.forEach((desc, name) => { cached[name] = desc; });
+      if (Object.keys(cached).length > 0) setPurposes(prev => ({ ...prev, ...cached }));
+
+      // Generate missing ones
+      for (const med of medications) {
+        const key = med.name.toLowerCase();
+        if (existingMap.has(key)) continue;
+        const medId = medMap.get(key);
+        if (!medId) continue;
+
+        try {
+          const { data } = await supabase.functions.invoke("describe-drug", {
+            body: { medication_id: medId, medication_name: med.name, dosage: med.dosage, patient_id: patientId },
+          });
+          if (data?.plain_description) {
+            setPurposes(prev => ({ ...prev, [key]: data.plain_description }));
+          }
+        } catch {
+          // ignore failures silently
+        }
+      }
+    };
+
+    fetchPurposes();
+  }, [patientId, medications]);
 
   const slotMeds: Record<TimeSlot, MedicationWithFreq[]> = {
     morning: [],
@@ -95,7 +161,7 @@ const MedicationSchedule = ({ medications }: MedicationScheduleProps) => {
               return (
                 <button
                   key={slot}
-                  onClick={() => setOpenSlot(isOpen ? slot : slot)}
+                  onClick={() => setOpenSlot(slot)}
                   className={cn(
                     "flex flex-col items-center gap-2 rounded-xl border p-5 transition-all cursor-pointer",
                     isOpen
@@ -122,6 +188,7 @@ const MedicationSchedule = ({ medications }: MedicationScheduleProps) => {
                 <>
                   {slotMeds[openSlot].map((med, i) => {
                     const food = parseFoodInstruction(med.frequency, med.dosage);
+                    const purpose = purposes[med.name.toLowerCase()];
                     return (
                       <div key={`${med.name}-${i}`} className="flex items-center justify-between py-3 border-b border-border last:border-0">
                         <div className="flex items-center gap-3">
@@ -131,6 +198,7 @@ const MedicationSchedule = ({ medications }: MedicationScheduleProps) => {
                           <div>
                             <p className="text-base font-bold text-foreground">{med.name}</p>
                             {med.dosage && <p className="text-sm text-muted-foreground">{med.dosage}</p>}
+                            {purpose && <p className="text-sm italic text-muted-foreground">{purpose}</p>}
                           </div>
                         </div>
                         <Badge variant="outline" className={cn("text-xs font-semibold shrink-0", food.className)}>

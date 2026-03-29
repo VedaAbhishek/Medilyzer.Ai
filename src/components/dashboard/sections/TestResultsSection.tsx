@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { ArrowUp, ArrowDown, Minus, Pill } from "lucide-react";
 import { format } from "date-fns";
 
@@ -53,8 +52,6 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   critical: { label: "⚠️ Needs Attention", className: "bg-red-100 text-red-800 border-red-300" },
 };
 
-const COLORS = ["hsl(155 71% 37%)", "hsl(0 84% 60%)", "hsl(220 70% 55%)", "hsl(35 90% 55%)", "hsl(280 60% 55%)", "hsl(180 60% 40%)"];
-
 const getFileName = (url: string | null) => {
   if (!url) return "Report";
   try { return decodeURIComponent(url.split("/").pop()?.split("?")[0] || "Report"); } catch { return "Report"; }
@@ -62,6 +59,7 @@ const getFileName = (url: string | null) => {
 
 const TestResultsSection = ({ patientId }: TestResultsSectionProps) => {
   const [reports, setReports] = useState<Report[]>([]);
+  const [latestMarkers, setLatestMarkers] = useState<Marker[]>([]);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [reportMarkers, setReportMarkers] = useState<Marker[]>([]);
   const [reportMedications, setReportMedications] = useState<Medication[]>([]);
@@ -78,7 +76,19 @@ const TestResultsSection = ({ patientId }: TestResultsSectionProps) => {
         supabase.from("markers").select("name, value, unit, status, ref_min, ref_max, date, record_id").eq("patient_id", patientId).order("date", { ascending: false }).limit(200),
       ]);
       setReports(reps || []);
-      setAllMarkers((mkrs || []).map(m => ({ ...m, value: Number(m.value), ref_min: m.ref_min ? Number(m.ref_min) : null, ref_max: m.ref_max ? Number(m.ref_max) : null })));
+      const allMkrs = (mkrs || []).map(m => ({ ...m, value: Number(m.value), ref_min: m.ref_min ? Number(m.ref_min) : null, ref_max: m.ref_max ? Number(m.ref_max) : null }));
+      setAllMarkers(allMkrs);
+
+      // Deduplicate latest markers
+      const seen = new Set<string>();
+      const latest: Marker[] = [];
+      for (const m of allMkrs) {
+        if (!seen.has(m.name)) {
+          seen.add(m.name);
+          latest.push(m);
+        }
+      }
+      setLatestMarkers(latest);
       setLoadingReports(false);
     };
     load();
@@ -111,7 +121,6 @@ const TestResultsSection = ({ patientId }: TestResultsSectionProps) => {
   const markerNames = [...selectedMarkerNames];
   const hasMultiplePoints = chartData.length > 1;
 
-  // Trend indicators
   const getTrend = (name: string) => {
     const points = trendMarkers.filter(m => m.name === name).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
     if (points.length < 2) return "stable";
@@ -123,7 +132,6 @@ const TestResultsSection = ({ patientId }: TestResultsSectionProps) => {
       if (last < prev) return "declining";
       return "stable";
     }
-    // If abnormal, moving toward normal range is improving
     if (status === "high") return last < prev ? "improving" : last > prev ? "declining" : "stable";
     if (status === "low") return last > prev ? "improving" : last < prev ? "declining" : "stable";
     return "stable";
@@ -143,19 +151,61 @@ const TestResultsSection = ({ patientId }: TestResultsSectionProps) => {
     <div className="space-y-8">
       <h2 className="text-2xl font-bold text-foreground">My Test Results</h2>
 
+      {/* Latest Test Results — always visible */}
+      <div className="space-y-5">
+        <h3 className="text-xl font-bold text-foreground">Latest Test Results</h3>
+        <Card>
+          <CardContent className="p-6">
+            {latestMarkers.length > 0 ? (
+              <div className="space-y-3">
+                {latestMarkers.map((m, i) => {
+                  const status = (m.status || "normal").toLowerCase();
+                  const config = statusConfig[status] || statusConfig.normal;
+                  return (
+                    <div key={i} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                      <span className="text-base font-medium text-foreground">{getFriendlyName(m.name)}</span>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <span className="text-base font-semibold text-foreground">
+                            {m.value} <span className="text-sm font-normal text-muted-foreground">{m.unit || ""}</span>
+                          </span>
+                          {m.ref_min != null && m.ref_max != null && (
+                            <p className="text-xs text-muted-foreground">
+                              Normal range: {m.ref_min} – {m.ref_max} {m.unit || ""}
+                            </p>
+                          )}
+                        </div>
+                        <div className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${config.className}`}>
+                          {config.label}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-base text-muted-foreground text-center py-4">Upload a lab report to see your results here.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Report dropdown */}
-      <Select value={selectedReportId || ""} onValueChange={(v) => setSelectedReportId(v)}>
-        <SelectTrigger className="w-full max-w-lg text-base h-12">
-          <SelectValue placeholder="Select a report to view its details" />
-        </SelectTrigger>
-        <SelectContent>
-          {reports.map((r) => (
-            <SelectItem key={r.id} value={r.id} className="text-base py-3">
-              {getFileName(r.file_url)} — {format(new Date(r.upload_date), "MMM d, yyyy")}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="space-y-3">
+        <h3 className="text-xl font-bold text-foreground">View by Report</h3>
+        <Select value={selectedReportId || ""} onValueChange={(v) => setSelectedReportId(v)}>
+          <SelectTrigger className="w-full max-w-lg text-base h-12">
+            <SelectValue placeholder="Select a report to view its details" />
+          </SelectTrigger>
+          <SelectContent>
+            {reports.map((r) => (
+              <SelectItem key={r.id} value={r.id} className="text-base py-3">
+                {getFileName(r.file_url)} — {format(new Date(r.upload_date), "MMM d, yyyy")}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {!selectedReportId && (
         <Card>
@@ -179,41 +229,23 @@ const TestResultsSection = ({ patientId }: TestResultsSectionProps) => {
           <div className="space-y-5">
             <h3 className="text-xl font-bold text-foreground">How My Results Are Changing</h3>
             {hasMultiplePoints ? (
-              <>
-                <Card>
-                  <CardContent className="p-6">
-                    <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(210 20% 90%)" />
-                        <XAxis dataKey="date" tick={{ fontSize: 13 }} stroke="hsl(210 10% 45%)" />
-                        <YAxis tick={{ fontSize: 13 }} stroke="hsl(210 10% 45%)" />
-                        <Tooltip contentStyle={{ borderRadius: 12, fontSize: 14 }} />
-                        <Legend wrapperStyle={{ fontSize: 14 }} formatter={(v: string) => getFriendlyName(v)} />
-                        {markerNames.map((name, i) => (
-                          <Line key={name} type="monotone" dataKey={name} name={getFriendlyName(name)} stroke={COLORS[i % COLORS.length]} strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }} connectNulls />
-                        ))}
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-                <div className="space-y-2">
-                  {markerNames.map((name) => {
-                    const trend = getTrend(name);
-                    const latest = reportMarkers.find(m => m.name === name);
-                    return (
-                      <div key={name} className="flex items-center justify-between py-2 px-4 rounded-lg bg-card border border-border">
-                        <span className="text-base font-medium text-foreground">{getFriendlyName(name)}</span>
-                        <div className="flex items-center gap-3">
-                          {trend === "improving" && <ArrowUp className="h-5 w-5 text-emerald-600" />}
-                          {trend === "declining" && <ArrowDown className="h-5 w-5 text-red-600" />}
-                          {trend === "stable" && <Minus className="h-5 w-5 text-muted-foreground" />}
-                          <span className="text-base font-semibold text-foreground">{latest?.value} {latest?.unit || ""}</span>
-                        </div>
+              <div className="space-y-2">
+                {markerNames.map((name) => {
+                  const trend = getTrend(name);
+                  const latest = reportMarkers.find(m => m.name === name);
+                  return (
+                    <div key={name} className="flex items-center justify-between py-2 px-4 rounded-lg bg-card border border-border">
+                      <span className="text-base font-medium text-foreground">{getFriendlyName(name)}</span>
+                      <div className="flex items-center gap-3">
+                        {trend === "improving" && <ArrowUp className="h-5 w-5 text-emerald-600" />}
+                        {trend === "declining" && <ArrowDown className="h-5 w-5 text-red-600" />}
+                        {trend === "stable" && <Minus className="h-5 w-5 text-muted-foreground" />}
+                        <span className="text-base font-semibold text-foreground">{latest?.value} {latest?.unit || ""}</span>
                       </div>
-                    );
-                  })}
-                </div>
-              </>
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
               <Card>
                 <CardContent className="p-8 text-center">
@@ -253,7 +285,7 @@ const TestResultsSection = ({ patientId }: TestResultsSectionProps) => {
 
           {/* SECTION 3 — Test Results */}
           <div className="space-y-5">
-            <h3 className="text-xl font-bold text-foreground">Latest Test Results</h3>
+            <h3 className="text-xl font-bold text-foreground">Test Results from This Report</h3>
             {reportMarkers.length === 0 ? (
               <Card>
                 <CardContent className="p-8 text-center">
