@@ -22,7 +22,7 @@
     --secondary-foreground: 155 71% 27%;
 
     --muted: 210 20% 96%;
-    --muted-foreground: 210 10% 45%;
+    --muted-foreground: 210 10% 40%;
 
     --accent: 155 20% 95%;
     --accent-foreground: 155 71% 27%;
@@ -34,7 +34,10 @@
     --input: 210 20% 90%;
     --ring: 155 71% 37%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
+
+    --warm-yellow: 45 100% 96%;
+    --warm-yellow-border: 45 80% 85%;
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -75,6 +78,9 @@
     --input: 210 20% 18%;
     --ring: 155 71% 37%;
 
+    --warm-yellow: 45 30% 15%;
+    --warm-yellow-border: 45 30% 25%;
+
     --sidebar-background: 210 20% 8%;
     --sidebar-foreground: 210 20% 90%;
     --sidebar-primary: 155 71% 37%;
@@ -93,5 +99,11 @@
 
   body {
     @apply bg-background text-foreground font-sans;
+    font-size: 16px;
+    line-height: 1.7;
+  }
+
+  h1, h2, h3 {
+    line-height: 1.3;
   }
 }
