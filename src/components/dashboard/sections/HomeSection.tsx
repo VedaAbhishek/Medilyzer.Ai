@@ -110,6 +110,13 @@ const HomeSection = ({ patient, profileName, markers, trends, summary, hasReport
 
   return (
     <div className="space-y-8 print:space-y-6">
+      {/* HERO — Health Overview Ring */}
+      <Card>
+        <CardContent className="p-8">
+          <HealthRing markers={markers} loading={loading} />
+        </CardContent>
+      </Card>
+
       {/* SECTION 1 — Patient Profile Header */}
       <Card>
         <CardContent className="p-8">
