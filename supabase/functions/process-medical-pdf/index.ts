@@ -81,7 +81,14 @@ Deno.serve(async (req) => {
       pdfBytes = new Uint8Array(await resp.arrayBuffer());
     }
 
-    const pdfBase64 = btoa(String.fromCharCode(...pdfBytes));
+    // Convert to base64 in chunks to avoid stack overflow on large files
+    let binary = "";
+    const chunkSize = 8192;
+    for (let i = 0; i < pdfBytes.length; i += chunkSize) {
+      const chunk = pdfBytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode(...chunk);
+    }
+    const pdfBase64 = btoa(binary);
 
     // Call Lovable AI Gateway with PDF as inline data
     const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
