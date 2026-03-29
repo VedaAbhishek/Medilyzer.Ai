@@ -261,9 +261,16 @@ const ReportCard = ({ report, patientId, onDeleteComplete }: ReportCardProps) =>
                   <div key={i} className="flex items-center justify-between gap-2">
                     <span className="text-sm text-foreground">{friendlyName(m.name)}</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-foreground">
-                        {m.value} {m.unit || ""}
-                      </span>
+                      <div className="text-right">
+                        <span className="text-sm font-medium text-foreground">
+                          {m.value} {m.unit || ""}
+                        </span>
+                        {m.ref_min != null && m.ref_max != null && (
+                          <p className="text-xs text-muted-foreground">
+                            Normal range: {m.ref_min} – {m.ref_max} {m.unit || ""}
+                          </p>
+                        )}
+                      </div>
                       {statusBadge(m.status)}
                     </div>
                   </div>
