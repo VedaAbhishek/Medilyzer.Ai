@@ -4,7 +4,7 @@ import { z } from "https://esm.sh/zod@3.22.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, x-supabase-client-version",
 };
 
 const BodySchema = z.object({ patient_id: z.string().uuid() });
@@ -23,7 +23,6 @@ serve(async (req) => {
 
     const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    // Get abnormal markers
     const { data: abnormalMarkers } = await sb
       .from("markers")
       .select("name, value, unit, status, date")
@@ -32,14 +31,13 @@ serve(async (req) => {
       .order("date", { ascending: false })
       .limit(20);
 
-    // Get medications
     const { data: meds } = await sb
       .from("medications")
       .select("name, dosage, frequency")
       .eq("patient_id", patient_id);
 
     if ((!abnormalMarkers || abnormalMarkers.length === 0) && (!meds || meds.length === 0)) {
-      return new Response(JSON.stringify({ recommendations: [], disclaimer: "No abnormal markers found. Keep up the good work!" }), {
+      return new Response(JSON.stringify({ foods_to_eat: [], foods_to_avoid: [] }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -49,17 +47,24 @@ serve(async (req) => {
 
     const patientData = JSON.stringify({ abnormal_markers: abnormalMarkers, medications: meds });
 
-    const prompt = `A patient has the following abnormal lab results and medications. Generate specific, actionable dietary recommendations. Be specific about food names. Explain in one sentence why each food helps. Do not give generic advice. Return ONLY valid JSON:
+    const prompt = `A patient has these abnormal lab results and medications. Generate two lists of specific foods.
+
+RULES:
+- Use everyday food names only. No medical terms. No jargon.
+- Each reason must be EXACTLY 5 words or fewer in plain English. Examples: "Boosts your B12 levels", "Helps lower blood sugar", "Good for your liver"
+- Pick a single relevant food emoji for each item
+- Include 8-12 foods in each list
+- Do NOT use terms like "hepatoprotective", "anti-inflammatory", "polyphenols", "ALT", "AST", "CRP", "ESR", "TSH"
+- Use words like "blood sugar" not "glucose", "thyroid" not "TSH", "liver health" not "hepatic function"
+
+Return ONLY valid JSON in this exact format:
 {
-  "recommendations": [
-    {
-      "nutrient": "string",
-      "reason": "one sentence explaining why this matters for their specific results",
-      "foods": ["4-5 specific food names"],
-      "tip": "one practical tip"
-    }
+  "foods_to_eat": [
+    { "emoji": "🥦", "name": "Broccoli", "reason": "Helps lower blood sugar" }
   ],
-  "disclaimer": "These suggestions support your health but do not replace medical advice. Discuss with your doctor."
+  "foods_to_avoid": [
+    { "emoji": "🍩", "name": "Donuts", "reason": "Spikes your blood sugar" }
+  ]
 }
 
 Patient data: ${patientData}`;
@@ -86,7 +91,6 @@ Patient data: ${patientData}`;
     content = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
     const result = JSON.parse(content);
 
-    // Save to diet_recommendations
     await sb.from("diet_recommendations").insert({
       patient_id,
       content: JSON.stringify(result),
