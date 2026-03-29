@@ -21,6 +21,12 @@ interface PatientInfo {
   blood_type: string | null;
   conditions: string[] | null;
   allergies: string[] | null;
+  dob: string | null;
+}
+
+interface MedicationInfo {
+  name: string;
+  dosage: string | null;
 }
 
 export function usePatientData() {
@@ -29,6 +35,7 @@ export function usePatientData() {
   const [patient, setPatient] = useState<PatientInfo | null>(null);
   const [markers, setMarkers] = useState<Marker[]>([]);
   const [trends, setTrends] = useState<TrendPoint[]>([]);
+  const [medications, setMedications] = useState<MedicationInfo[]>([]);
   const [summary, setSummary] = useState<string | null>(null);
   const [hasReports, setHasReports] = useState(false);
   const [loading, setLoading] = useState(true);
