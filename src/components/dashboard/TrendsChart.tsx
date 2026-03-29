@@ -223,9 +223,6 @@ const TrendsChart = ({ trends, markers }: TrendsChartProps) => {
                     <span className="text-muted-foreground">Stable</span>
                   </>
                 )}
-                {c.trend === "insufficient" && (
-                  <span className="text-muted-foreground">Not enough data</span>
-                )}
               </div>
             </div>
           </CardContent>
