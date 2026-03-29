@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import TrendsChart from "@/components/dashboard/TrendsChart";
 import HealthRing from "@/components/dashboard/HealthRing";
-import { Printer, Pill, FileText, UserPen } from "lucide-react";
+import MedicationSchedule from "@/components/dashboard/MedicationSchedule";
+import { Printer, FileText, UserPen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface Marker {
@@ -25,6 +26,7 @@ interface TrendPoint {
 interface Medication {
   name: string;
   dosage: string | null;
+  frequency: string | null;
 }
 
 interface HomeSectionProps {
@@ -179,30 +181,7 @@ const HomeSection = ({ patient, profileName, markers, trends, summary, hasReport
       </div>
 
       {/* SECTION 4 — Current Medications */}
-      <div className="space-y-5">
-        <h2 className="text-2xl font-bold text-foreground">Current Medications</h2>
-        <Card>
-          <CardContent className="p-6">
-            {medications.length > 0 ? (
-              <div className="space-y-3">
-                {medications.map((med, i) => (
-                  <div key={i} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <Pill className="h-4 w-4 text-primary" />
-                    </div>
-                    <span className="text-base font-medium text-foreground">{med.name}</span>
-                    {med.dosage && (
-                      <span className="text-sm text-muted-foreground">— {med.dosage}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-base text-muted-foreground text-center py-4">No medications on record yet.</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <MedicationSchedule medications={medications} />
 
       {/* SECTION 5 — Latest Test Results */}
       <div className="space-y-5">

@@ -30,6 +30,7 @@ interface PatientInfo {
 interface MedicationInfo {
   name: string;
   dosage: string | null;
+  frequency: string | null;
 }
 
 export function usePatientData() {
@@ -106,12 +107,31 @@ export function usePatientData() {
         setTrends([]);
       }
 
-      // Fetch medications
-      const { data: medRows } = await supabase
-        .from("medications")
-        .select("name, dosage")
-        .eq("patient_id", patientRow.id);
-      setMedications(medRows || []);
+      // Fetch medications from latest prescription only
+      const { data: latestPrescription } = await supabase
+        .from("medical_records")
+        .select("id")
+        .eq("patient_id", patientRow.id)
+        .eq("type", "prescription")
+        .order("upload_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestPrescription) {
+        const { data: medRows } = await supabase
+          .from("medications")
+          .select("name, dosage, frequency")
+          .eq("patient_id", patientRow.id)
+          .eq("record_id", latestPrescription.id);
+        setMedications(medRows || []);
+      } else {
+        // Fallback: get all medications if no prescription record exists
+        const { data: medRows } = await supabase
+          .from("medications")
+          .select("name, dosage, frequency")
+          .eq("patient_id", patientRow.id);
+        setMedications(medRows || []);
+      }
 
       // Fetch latest summary
       const { data: summaryRows } = await supabase
