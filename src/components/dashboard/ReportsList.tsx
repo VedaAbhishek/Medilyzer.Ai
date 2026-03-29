@@ -12,7 +12,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileText, Trash2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { FileText, Trash2, Eye, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
@@ -36,6 +43,7 @@ const ReportsList = ({ patientId, onDeleteComplete }: ReportsListProps) => {
   const [loading, setLoading] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [viewReport, setViewReport] = useState<Report | null>(null);
 
   const fetchReports = async () => {
     if (!patientId) return;
@@ -134,22 +142,36 @@ const ReportsList = ({ patientId, onDeleteComplete }: ReportsListProps) => {
                 <div className="flex items-center gap-3 min-w-0">
                   <FileText className="h-5 w-5 shrink-0 text-primary" />
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">
+                    <button
+                      className="text-sm font-medium truncate text-left hover:text-primary hover:underline transition-colors cursor-pointer block"
+                      onClick={() => setViewReport(report)}
+                    >
                       {getFileName(report.file_url)}
-                    </p>
+                    </button>
                     <p className="text-xs text-muted-foreground">
                       {formatDate(report.upload_date)}
                     </p>
                   </div>
                   {typeBadge(report.type)}
                 </div>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setDeleteId(report.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-primary border-primary hover:bg-primary/10"
+                    onClick={() => setViewReport(report)}
+                  >
+                    <Eye className="h-4 w-4" />
+                    View
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setDeleteId(report.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -172,6 +194,41 @@ const ReportsList = ({ patientId, onDeleteComplete }: ReportsListProps) => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!viewReport} onOpenChange={(open) => !open && setViewReport(null)}>
+        <DialogContent className="max-w-[80vw] w-[80vw] h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>{viewReport ? getFileName(viewReport.file_url) : ""}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0">
+            {viewReport?.file_url && (
+              <iframe
+                src={viewReport.file_url}
+                className="w-full h-full rounded border"
+                title="PDF Viewer"
+              />
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="text-primary border-primary hover:bg-primary/10"
+              onClick={() => {
+                if (viewReport?.file_url) {
+                  const a = document.createElement("a");
+                  a.href = viewReport.file_url;
+                  a.download = getFileName(viewReport.file_url);
+                  a.target = "_blank";
+                  a.click();
+                }
+              }}
+            >
+              <Download className="h-4 w-4" />
+              Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
