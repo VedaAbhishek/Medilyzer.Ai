@@ -53,7 +53,7 @@ const Dashboard = () => {
       case "ask":
         return <AskQuestionSection />;
       case "doctor":
-        return <FindDoctorSection />;
+        return <FindDoctorSection patientId={patientId} />;
       default:
         return null;
     }
