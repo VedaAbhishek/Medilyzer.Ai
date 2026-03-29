@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import TrendsChart from "@/components/dashboard/TrendsChart";
+import HealthRing from "@/components/dashboard/HealthRing";
 import { Printer, Pill, TrendingUp, TrendingDown, Minus, FileText, UserPen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -109,6 +110,13 @@ const HomeSection = ({ patient, profileName, markers, trends, summary, hasReport
 
   return (
     <div className="space-y-8 print:space-y-6">
+      {/* HERO — Health Overview Ring */}
+      <Card>
+        <CardContent className="p-8">
+          <HealthRing markers={markers} loading={loading} />
+        </CardContent>
+      </Card>
+
       {/* SECTION 1 — Patient Profile Header */}
       <Card>
         <CardContent className="p-8">
