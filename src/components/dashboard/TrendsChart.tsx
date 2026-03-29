@@ -1,8 +1,4 @@
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  LineChart, Line, XAxis, YAxis, Area, AreaChart,
-  ReferenceLine, ResponsiveContainer, Tooltip,
-} from "recharts";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 interface Marker {
@@ -39,14 +35,11 @@ const friendlyNames: Record<string, string> = {
 const getFriendlyName = (name: string) =>
   friendlyNames[name.toLowerCase().trim()] || name;
 
-const getTrend = (points: TrendPoint[]) => {
-  if (points.length < 2) return "insufficient";
-  const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
-  const last = sorted[sorted.length - 1].value;
-  const prev = sorted[sorted.length - 2].value;
-  const pct = Math.abs((last - prev) / (prev || 1)) * 100;
-  if (pct < 3) return "stable";
-  return last > prev ? "up" : "down";
+const statusConfig: Record<string, { label: string; className: string }> = {
+  normal: { label: "Normal", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  low: { label: "Low", className: "bg-red-50 text-red-700 border-red-200" },
+  high: { label: "High", className: "bg-orange-50 text-orange-700 border-orange-200" },
+  critical: { label: "Attention", className: "bg-red-100 text-red-800 border-red-300" },
 };
 
 const TrendsChart = ({ trends, markers }: TrendsChartProps) => {
@@ -54,7 +47,6 @@ const TrendsChart = ({ trends, markers }: TrendsChartProps) => {
 
   const markerNames = [...new Set(trends.map((t) => t.name))];
 
-  // Only include markers with 2+ data points on different dates
   const cards = markerNames.map((name) => {
     const points = trends
       .filter((t) => t.name === name)
@@ -66,38 +58,26 @@ const TrendsChart = ({ trends, markers }: TrendsChartProps) => {
       (m) => m.name.toLowerCase() === name.toLowerCase()
     );
     const latest = points[points.length - 1];
+    const prev = points[points.length - 2];
     const status = (markerInfo?.status || "normal").toLowerCase();
     const isNormal = status === "normal";
-    const color = isNormal ? "#1D9E75" : "#E24B4A";
-    const lightColor = isNormal ? "rgba(29,158,117,0.1)" : "rgba(226,75,74,0.1)";
-    const trend = getTrend(points);
-
-    const values = points.map((p) => p.value);
     const refMin = markerInfo?.ref_min;
     const refMax = markerInfo?.ref_max;
-    const allVals = [
-      ...values,
-      ...(refMin != null ? [refMin] : []),
-      ...(refMax != null ? [refMax] : []),
-    ];
-    const yMin = Math.floor(Math.min(...allVals) * 0.9);
-    const yMax = Math.ceil(Math.max(...allVals) * 1.1);
 
-    return {
-      name,
-      points,
-      latest,
-      markerInfo,
-      status,
-      isNormal,
-      color,
-      lightColor,
-      trend,
-      yMin,
-      yMax,
-      refMin,
-      refMax,
-    };
+    // Determine trend
+    let trend: "improving" | "declining" | "stable" = "stable";
+    const pct = Math.abs((latest.value - prev.value) / (prev.value || 1)) * 100;
+    if (pct >= 3) {
+      if (status === "normal") {
+        trend = latest.value > prev.value ? "improving" : "declining";
+      } else if (status === "high") {
+        trend = latest.value < prev.value ? "improving" : "declining";
+      } else if (status === "low") {
+        trend = latest.value > prev.value ? "improving" : "declining";
+      }
+    }
+
+    return { name, latest, markerInfo, status, isNormal, refMin, refMax, trend };
   });
 
   // Sort: abnormal first
@@ -121,97 +101,76 @@ const TrendsChart = ({ trends, markers }: TrendsChartProps) => {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {cards.map((c) => (
-        <Card key={c.name}>
-          <CardContent className="p-4 space-y-2">
-            <h3 className="text-sm font-bold text-foreground">
-              {getFriendlyName(c.name)}
-            </h3>
-            <div className="h-[120px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={c.points}
-                  margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id={`fill-${c.name}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={c.color} stopOpacity={0.15} />
-                      <stop offset="100%" stopColor={c.color} stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <YAxis
-                    domain={[c.yMin, c.yMax]}
-                    tick={{ fontSize: 10 }}
-                    stroke="hsl(210 10% 75%)"
-                    tickLine={false}
-                    axisLine={false}
-                    width={35}
-                  />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 9 }}
-                    stroke="hsl(210 10% 75%)"
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: 8,
-                      fontSize: 12,
-                      border: "1px solid hsl(210 10% 90%)",
+      {cards.map((c) => {
+        const hasRange = c.refMin != null && c.refMax != null;
+        const color = c.isNormal ? "#1D9E75" : "#E24B4A";
+        const sConfig = statusConfig[c.status] || statusConfig.normal;
+
+        // Calculate position on range bar
+        let positionPct = 50;
+        if (hasRange) {
+          const range = c.refMax! - c.refMin!;
+          const padding = range * 0.2;
+          const barMin = c.refMin! - padding;
+          const barMax = c.refMax! + padding;
+          positionPct = Math.max(0, Math.min(100, ((c.latest.value - barMin) / (barMax - barMin)) * 100));
+        }
+
+        return (
+          <Card key={c.name}>
+            <CardContent className="p-4 space-y-3">
+              <h3 className="text-sm font-bold text-foreground">
+                {getFriendlyName(c.name)}
+              </h3>
+
+              {/* Range bar */}
+              {hasRange && (
+                <div className="relative">
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="absolute h-2 rounded-full bg-emerald-200"
+                      style={{
+                        left: `${Math.max(0, ((c.refMin! - (c.refMin! - (c.refMax! - c.refMin!) * 0.2)) / ((c.refMax! + (c.refMax! - c.refMin!) * 0.2) - (c.refMin! - (c.refMax! - c.refMin!) * 0.2))) * 100)}%`,
+                        width: `${((c.refMax! - c.refMin!) / ((c.refMax! + (c.refMax! - c.refMin!) * 0.2) - (c.refMin! - (c.refMax! - c.refMin!) * 0.2))) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  {/* Dot indicator */}
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white shadow-sm"
+                    style={{
+                      left: `${positionPct}%`,
+                      transform: `translate(-50%, -50%)`,
+                      backgroundColor: color,
                     }}
-                    formatter={(val: number) => [
-                      `${val} ${c.markerInfo?.unit || ""}`,
-                      getFriendlyName(c.name),
-                    ]}
                   />
-                  {c.refMin != null && (
-                    <ReferenceLine
-                      y={c.refMin}
-                      stroke="hsl(210 10% 80%)"
-                      strokeDasharray="4 4"
-                    />
-                  )}
-                  {c.refMax != null && (
-                    <ReferenceLine
-                      y={c.refMax}
-                      stroke="hsl(210 10% 80%)"
-                      strokeDasharray="4 4"
-                    />
-                  )}
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    stroke={c.color}
-                    strokeWidth={2}
-                    fill={`url(#fill-${c.name})`}
-                    dot={{ r: 3, fill: c.color }}
-                    activeDot={{ r: 5 }}
-                    connectNulls
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <span
-                  className="text-xl font-bold"
-                  style={{ color: c.color }}
-                >
-                  {c.latest?.value}
+                </div>
+              )}
+
+              {/* Value, range, badge row */}
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-semibold text-foreground" style={{ color }}>
+                  {c.latest.value} <span className="text-xs text-muted-foreground font-normal">{c.markerInfo?.unit || ""}</span>
                 </span>
-                <span className="text-xs text-muted-foreground ml-1">
-                  {c.markerInfo?.unit || ""}
-                </span>
+                {hasRange && (
+                  <span className="text-xs text-muted-foreground">
+                    {c.refMin} – {c.refMax}
+                  </span>
+                )}
+                <div className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${sConfig.className}`}>
+                  {sConfig.label}
+                </div>
               </div>
+
+              {/* Trend arrow */}
               <div className="flex items-center gap-1 text-xs font-medium">
-                {c.trend === "up" && (
+                {c.trend === "improving" && (
                   <>
                     <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
                     <span className="text-emerald-600">Improving</span>
                   </>
                 )}
-                {c.trend === "down" && (
+                {c.trend === "declining" && (
                   <>
                     <TrendingDown className="h-3.5 w-3.5 text-red-500" />
                     <span className="text-red-500">Declining</span>
@@ -224,10 +183,10 @@ const TrendsChart = ({ trends, markers }: TrendsChartProps) => {
                   </>
                 )}
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 };
