@@ -24,6 +24,7 @@ interface PatientInfo {
   conditions: string[] | null;
   allergies: string[] | null;
   dob: string | null;
+  profile_completed: boolean | null;
 }
 
 interface MedicationInfo {
@@ -49,7 +50,7 @@ export function usePatientData() {
     // Get or create patient record
     let { data: patientRow } = await supabase
       .from("patients")
-      .select("id, name, blood_type, conditions, allergies, dob")
+      .select("id, name, blood_type, conditions, allergies, dob, profile_completed")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -57,7 +58,7 @@ export function usePatientData() {
       const { data: newPatient } = await supabase
         .from("patients")
         .insert({ user_id: user.id, name: user.user_metadata?.name || "Patient" })
-        .select("id, name, blood_type, conditions, allergies, dob")
+        .select("id, name, blood_type, conditions, allergies, dob, profile_completed")
         .single();
       patientRow = newPatient;
     }
