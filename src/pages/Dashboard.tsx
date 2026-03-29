@@ -1,6 +1,11 @@
 import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import DashboardNavbar from "@/components/dashboard/DashboardNavbar";
+import ProfileCard from "@/components/dashboard/ProfileCard";
+import MetricCards from "@/components/dashboard/MetricCards";
+import TrendsChart from "@/components/dashboard/TrendsChart";
+import SummaryCard from "@/components/dashboard/SummaryCard";
+import UploadButton from "@/components/dashboard/UploadButton";
 
 const Dashboard = () => {
   const { profile, signOut } = useAuth();
@@ -12,20 +17,16 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-primary">Medilyzer</h1>
-        <Button variant="outline" size="sm" onClick={handleSignOut}>
-          Sign Out
-        </Button>
-      </header>
-      <main className="max-w-2xl mx-auto px-6 py-16 text-center">
-        <h2 className="text-3xl font-bold text-foreground">
-          Welcome, {profile?.name || "Patient"} 👋
-        </h2>
-        <p className="mt-3 text-muted-foreground">
-          Your medical passport is ready. We'll build out your dashboard next.
-        </p>
+    <div className="min-h-screen bg-muted">
+      <DashboardNavbar name={profile?.name || "Patient"} onSignOut={handleSignOut} />
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+        <ProfileCard />
+        <MetricCards />
+        <TrendsChart />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <SummaryCard />
+          <UploadButton />
+        </div>
       </main>
     </div>
   );
