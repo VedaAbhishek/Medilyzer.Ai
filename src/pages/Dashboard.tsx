@@ -58,6 +58,8 @@ const Dashboard = () => {
               <SummaryCard summary={summary} loading={loading} />
               <UploadButton patientId={patientId} onUploadComplete={refetch} />
             </div>
+            <MedicationsList patientId={patientId} />
+            <DietRecommendations patientId={patientId} />
             <ReportsList patientId={patientId} onDeleteComplete={refetch} />
           </>
         )}
