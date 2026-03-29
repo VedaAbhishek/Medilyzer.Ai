@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { usePatientData } from "@/hooks/usePatientData";
@@ -18,6 +18,13 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { patientId, patient, markers, trends, summary, hasReports, loading, medications, refetch } = usePatientData();
   const [activeSection, setActiveSection] = useState<DashboardSection>("home");
+
+  // Redirect to setup if profile not completed
+  useEffect(() => {
+    if (!loading && patient && !(patient as any).profile_completed) {
+      navigate("/setup-profile", { replace: true });
+    }
+  }, [loading, patient, navigate]);
 
   const handleSignOut = async () => {
     await signOut();

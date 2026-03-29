@@ -223,34 +223,100 @@ export type Database = {
       }
       patients: {
         Row: {
+          alcohol: string | null
           allergies: string[] | null
           blood_type: string | null
           conditions: string[] | null
+          contraception_type: string | null
           created_at: string
+          cycle_length: number | null
           dob: string | null
+          doctor_clinic: string | null
+          doctor_name: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          emergency_contact_relationship: string | null
+          exercise: string | null
+          height_cm: number | null
+          hormonal_contraception: string | null
           id: string
+          insurance_member_id: string | null
+          insurance_provider: string | null
+          last_period: string | null
+          menopause: string | null
           name: string
+          pcos_diagnosed: string | null
+          periods_regular: string | null
+          pregnant: string | null
+          profile_completed: boolean | null
+          sex: string | null
+          smoker: string | null
           user_id: string
+          weight_kg: number | null
         }
         Insert: {
+          alcohol?: string | null
           allergies?: string[] | null
           blood_type?: string | null
           conditions?: string[] | null
+          contraception_type?: string | null
           created_at?: string
+          cycle_length?: number | null
           dob?: string | null
+          doctor_clinic?: string | null
+          doctor_name?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          emergency_contact_relationship?: string | null
+          exercise?: string | null
+          height_cm?: number | null
+          hormonal_contraception?: string | null
           id?: string
+          insurance_member_id?: string | null
+          insurance_provider?: string | null
+          last_period?: string | null
+          menopause?: string | null
           name: string
+          pcos_diagnosed?: string | null
+          periods_regular?: string | null
+          pregnant?: string | null
+          profile_completed?: boolean | null
+          sex?: string | null
+          smoker?: string | null
           user_id: string
+          weight_kg?: number | null
         }
         Update: {
+          alcohol?: string | null
           allergies?: string[] | null
           blood_type?: string | null
           conditions?: string[] | null
+          contraception_type?: string | null
           created_at?: string
+          cycle_length?: number | null
           dob?: string | null
+          doctor_clinic?: string | null
+          doctor_name?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          emergency_contact_relationship?: string | null
+          exercise?: string | null
+          height_cm?: number | null
+          hormonal_contraception?: string | null
           id?: string
+          insurance_member_id?: string | null
+          insurance_provider?: string | null
+          last_period?: string | null
+          menopause?: string | null
           name?: string
+          pcos_diagnosed?: string | null
+          periods_regular?: string | null
+          pregnant?: string | null
+          profile_completed?: boolean | null
+          sex?: string | null
+          smoker?: string | null
           user_id?: string
+          weight_kg?: number | null
         }
         Relationships: []
       }

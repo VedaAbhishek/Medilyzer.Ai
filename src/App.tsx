@@ -10,6 +10,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import DoctorDashboard from "./pages/DoctorDashboard";
+import SetupProfile from "./pages/SetupProfile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,14 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route
+              path="/setup-profile"
+              element={
+                <ProtectedRoute allowedRole="patient">
+                  <SetupProfile />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/dashboard"
               element={
