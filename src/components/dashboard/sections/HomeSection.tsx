@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import TrendsChart from "@/components/dashboard/TrendsChart";
 import HealthRing from "@/components/dashboard/HealthRing";
 import MedicationSchedule from "@/components/dashboard/MedicationSchedule";
-import { Printer, UserPen, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Printer, UserPen, ChevronDown, ChevronUp, Loader2, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -56,10 +56,10 @@ const friendlyNames: Record<string, string> = {
 const getFriendlyName = (name: string) => friendlyNames[name.toLowerCase().trim()] || name;
 
 const statusConfig: Record<string, { label: string; className: string }> = {
-  normal: { label: "✅ This is Normal", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  low: { label: "🔻 This is Low", className: "bg-red-50 text-red-700 border-red-200" },
-  high: { label: "🔺 This is High", className: "bg-orange-50 text-orange-700 border-orange-200" },
-  critical: { label: "⚠️ Needs Attention", className: "bg-red-100 text-red-800 border-red-300" },
+  normal: { label: "✅ Normal", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  low: { label: "🔻 Low", className: "bg-red-50 text-red-700 border-red-200" },
+  high: { label: "🔺 High", className: "bg-orange-50 text-orange-700 border-orange-200" },
+  critical: { label: "⚠️ Attention", className: "bg-red-100 text-red-800 border-red-300" },
 };
 
 const computeAge = (dob: string | null | undefined): string | null => {
@@ -71,21 +71,86 @@ const computeAge = (dob: string | null | undefined): string | null => {
   return `${age} years old`;
 };
 
+interface HealthSummaryRow {
+  name: string;
+  firstValue: number;
+  latestValue: number;
+  unit: string | null;
+  latestStatus: string | null;
+  change: "improved" | "declined" | "stable";
+}
+
 const HomeSection = ({ patient, profileName, markers, trends, summary, hasReports, loading, patientId, medications }: HomeSectionProps) => {
   const age = computeAge(patient?.dob);
   const navigate = useNavigate();
   const [trendsOpen, setTrendsOpen] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [healthRows, setHealthRows] = useState<HealthSummaryRow[]>([]);
+  const [multipleReports, setMultipleReports] = useState(false);
 
   const handlePrint = () => window.print();
 
-  // Generate AI health summary when markers are available
+  // Build cross-report health summary from trends
+  useEffect(() => {
+    if (!patientId || trends.length === 0) return;
+
+    // Group trends by marker name
+    const byName = new Map<string, TrendPoint[]>();
+    trends.forEach(t => {
+      if (!byName.has(t.name)) byName.set(t.name, []);
+      byName.get(t.name)!.push(t);
+    });
+
+    const uniqueDates = new Set(trends.map(t => t.date));
+    setMultipleReports(uniqueDates.size > 1);
+
+    const rows: HealthSummaryRow[] = [];
+    byName.forEach((points, name) => {
+      // Sort by date ascending
+      const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
+      const first = sorted[0];
+      const latest = sorted[sorted.length - 1];
+      const marker = markers.find(m => m.name === name);
+      const isNormal = marker?.status?.toLowerCase() === "normal";
+
+      let change: "improved" | "declined" | "stable" = "stable";
+      if (sorted.length >= 2) {
+        const diff = latest.value - first.value;
+        if (Math.abs(diff) < 0.01) {
+          change = "stable";
+        } else if (isNormal) {
+          change = "improved"; // ended normal
+        } else {
+          change = "declined";
+        }
+      }
+
+      rows.push({
+        name,
+        firstValue: first.value,
+        latestValue: latest.value,
+        unit: marker?.unit || null,
+        latestStatus: marker?.status || null,
+        change: sorted.length < 2 ? "stable" : change,
+      });
+    });
+
+    // Sort: abnormal first
+    rows.sort((a, b) => {
+      const aAbnormal = a.latestStatus?.toLowerCase() !== "normal" ? 0 : 1;
+      const bAbnormal = b.latestStatus?.toLowerCase() !== "normal" ? 0 : 1;
+      return aAbnormal - bAbnormal;
+    });
+
+    setHealthRows(rows);
+  }, [patientId, trends, markers]);
+
+  // Generate AI health summary
   useEffect(() => {
     if (!patientId || markers.length === 0) return;
 
     const generateSummary = async () => {
-      // Check if we already have a recent summary
       const { data: existing } = await supabase
         .from("summaries")
         .select("plain_text")
@@ -122,7 +187,6 @@ const HomeSection = ({ patient, profileName, markers, trends, summary, hasReport
           },
         });
 
-        // For streaming responses, read the stream
         if (data instanceof ReadableStream) {
           const reader = data.getReader();
           const decoder = new TextDecoder();
@@ -152,11 +216,7 @@ const HomeSection = ({ patient, profileName, markers, trends, summary, hasReport
 
           if (result) {
             setAiSummary(result);
-            // Cache it
-            await supabase.from("summaries").insert({
-              patient_id: patientId,
-              plain_text: result,
-            });
+            await supabase.from("summaries").insert({ patient_id: patientId, plain_text: result });
           }
         }
       } catch (err) {
@@ -213,7 +273,6 @@ const HomeSection = ({ patient, profileName, markers, trends, summary, hasReport
                   </Badge>
                 )}
               </div>
-
               <div className="space-y-2">
                 {patient?.conditions && patient.conditions.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2">
@@ -236,15 +295,12 @@ const HomeSection = ({ patient, profileName, markers, trends, summary, hasReport
                 )}
               </div>
             </div>
-
             <div className="flex gap-3 shrink-0 self-start print:hidden">
               <Button variant="outline" onClick={() => navigate("/setup-profile")} className="gap-2">
-                <UserPen className="h-4 w-4" />
-                Edit Profile
+                <UserPen className="h-4 w-4" /> Edit Profile
               </Button>
               <Button onClick={handlePrint} className="gap-2">
-                <Printer className="h-4 w-4" />
-                Share with Doctor
+                <Printer className="h-4 w-4" /> Share with Doctor
               </Button>
             </div>
           </div>
@@ -280,22 +336,16 @@ const HomeSection = ({ patient, profileName, markers, trends, summary, hasReport
           className="w-full flex items-center justify-between py-4 px-1 text-left"
         >
           <h2 className="text-2xl font-bold text-foreground">How Your Results Are Trending</h2>
-          {trendsOpen ? (
-            <ChevronUp className="h-6 w-6 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="h-6 w-6 text-muted-foreground" />
-          )}
+          {trendsOpen ? <ChevronUp className="h-6 w-6 text-muted-foreground" /> : <ChevronDown className="h-6 w-6 text-muted-foreground" />}
         </button>
         {trendsOpen && (
           <div className="pt-2">
             {trends.length > 0 ? (
               <TrendsChart trends={trends} markers={markers} />
             ) : (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <p className="text-base text-muted-foreground">Upload reports over time to see how your health is trending.</p>
-                </CardContent>
-              </Card>
+              <Card><CardContent className="p-8 text-center">
+                <p className="text-base text-muted-foreground">Upload reports over time to see how your health is trending.</p>
+              </CardContent></Card>
             )}
           </div>
         )}
@@ -304,40 +354,68 @@ const HomeSection = ({ patient, profileName, markers, trends, summary, hasReport
       {/* SECTION 4 — Current Medications */}
       <MedicationSchedule medications={medications} patientId={patientId} />
 
-      {/* SECTION 5 — Latest Test Results */}
+      {/* SECTION 5 — Overall Health Summary Table (replaces Latest Test Results) */}
       <div className="space-y-5">
-        <h2 className="text-2xl font-bold text-foreground">Latest Test Results</h2>
+        <h2 className="text-2xl font-bold text-foreground">Overall Health Summary</h2>
         <Card>
           <CardContent className="p-6">
-            {markers.length > 0 ? (
-              <div className="space-y-3">
-                {markers.map(m => {
-                  const status = (m.status || "normal").toLowerCase();
-                  const config = statusConfig[status] || statusConfig.normal;
-                  return (
-                    <div key={m.name} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                      <span className="text-base font-medium text-foreground">{getFriendlyName(m.name)}</span>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <span className="text-base font-semibold text-foreground">
-                            {m.value} <span className="text-sm font-normal text-muted-foreground">{m.unit}</span>
-                          </span>
-                          {m.ref_min != null && m.ref_max != null && (
-                            <p className="text-xs text-muted-foreground">
-                              Normal range: {m.ref_min} – {m.ref_max} {m.unit || ""}
-                            </p>
-                          )}
-                        </div>
-                        <div className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${config.className}`}>
-                          {config.label}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+            {healthRows.length > 0 && multipleReports ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left text-sm font-medium text-muted-foreground py-3 pr-4">Marker</th>
+                      <th className="text-right text-sm font-medium text-muted-foreground py-3 px-4">First Value</th>
+                      <th className="text-right text-sm font-medium text-muted-foreground py-3 px-4">Latest Value</th>
+                      <th className="text-center text-sm font-medium text-muted-foreground py-3 px-4">Change</th>
+                      <th className="text-right text-sm font-medium text-muted-foreground py-3 pl-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {healthRows.map(row => {
+                      const status = (row.latestStatus || "normal").toLowerCase();
+                      const config = statusConfig[status] || statusConfig.normal;
+                      return (
+                        <tr key={row.name} className="border-b border-border last:border-0">
+                          <td className="text-base font-medium text-foreground py-3 pr-4">{getFriendlyName(row.name)}</td>
+                          <td className="text-right text-sm text-muted-foreground py-3 px-4">
+                            {row.firstValue} {row.unit || ""}
+                          </td>
+                          <td className="text-right text-base font-semibold text-foreground py-3 px-4">
+                            {row.latestValue} {row.unit || ""}
+                          </td>
+                          <td className="text-center py-3 px-4">
+                            {row.change === "improved" ? (
+                              <span className="inline-flex items-center gap-1 text-emerald-600 text-sm font-medium">
+                                <TrendingUp className="h-4 w-4" /> Improving
+                              </span>
+                            ) : row.change === "declined" ? (
+                              <span className="inline-flex items-center gap-1 text-red-600 text-sm font-medium">
+                                <TrendingDown className="h-4 w-4" /> Declining
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-muted-foreground text-sm font-medium">
+                                <Minus className="h-4 w-4" /> Stable
+                              </span>
+                            )}
+                          </td>
+                          <td className="text-right py-3 pl-4">
+                            <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${config.className}`}>
+                              {config.label}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             ) : (
-              <p className="text-base text-muted-foreground text-center py-4">Upload a lab report to see your results here.</p>
+              <p className="text-base text-muted-foreground text-center py-4">
+                {markers.length === 0
+                  ? "Upload a lab report to see your results here."
+                  : "Upload more reports over time to see how your health has changed."}
+              </p>
             )}
           </CardContent>
         </Card>

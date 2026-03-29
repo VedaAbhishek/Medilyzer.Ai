@@ -3,11 +3,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Apple, Loader2, Plus, RefreshCw, Clock } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Apple, Loader2, Plus, RefreshCw, Clock, Settings2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 interface FoodItem {
   emoji: string;
@@ -49,23 +52,38 @@ interface FoodLogEntry {
   time: string;
 }
 
+interface DietPreferences {
+  diet_type: string;
+  food_allergies: string[];
+  cuisine_preferences: string[];
+  meals_per_day: number;
+}
+
 interface DietRecommendationsProps {
   patientId: string | null;
 }
 
 const NUTRIENT_FILTERS = ["Iron", "Vitamin B12", "Folate", "Vitamin C", "Fiber", "Protein"];
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
-const DAY_LABELS: Record<string, string> = {
-  monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu",
-  friday: "Fri", saturday: "Sat", sunday: "Sun",
-};
+
+const DIET_TYPES = [
+  { value: "no_restrictions", label: "No restrictions", emoji: "🍽️" },
+  { value: "vegetarian", label: "Vegetarian", emoji: "🥬" },
+  { value: "vegan", label: "Vegan", emoji: "🌱" },
+  { value: "pescatarian", label: "Pescatarian", emoji: "🐟" },
+  { value: "gluten_free", label: "Gluten free", emoji: "🌾" },
+  { value: "dairy_free", label: "Dairy free", emoji: "🥛" },
+  { value: "halal", label: "Halal", emoji: "☪️" },
+  { value: "kosher", label: "Kosher", emoji: "✡️" },
+];
+const FOOD_ALLERGIES_LIST = ["Peanuts", "Tree nuts", "Shellfish", "Fish", "Eggs", "Soy", "Wheat", "Dairy", "Sesame", "Other"];
+const CUISINE_LIST = ["American", "Mediterranean", "Mexican", "Indian", "Asian", "Middle Eastern", "Italian", "No preference"];
 
 const SOURCES = [
   { name: "USDA FoodData Central", url: "fdc.nal.usda.gov" },
   { name: "National Institutes of Health, Office of Dietary Supplements", url: "ods.od.nih.gov" },
   { name: "Harvard T.H. Chan School of Public Health, The Nutrition Source", url: "hsph.harvard.edu/nutritionsource" },
   { name: "Academy of Nutrition and Dietetics", url: "eatright.org" },
-  { name: "American Heart Association", url: "heart.org" },
 ];
 
 const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
@@ -77,32 +95,23 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
   const [foodLog, setFoodLog] = useState<FoodLogEntry[]>([]);
   const [logModalOpen, setLogModalOpen] = useState(false);
   const [logInput, setLogInput] = useState("");
+  const [dietPrefs, setDietPrefs] = useState<DietPreferences>({ diet_type: "", food_allergies: [], cuisine_preferences: [], meals_per_day: 3 });
+  const [prefsModalOpen, setPrefsModalOpen] = useState(false);
+  const [editPrefs, setEditPrefs] = useState<DietPreferences>(dietPrefs);
 
   useEffect(() => {
     if (!patientId) return;
     const load = async () => {
-      const [{ data: dietData }, { data: markerData }] = await Promise.all([
-        supabase
-          .from("diet_recommendations")
-          .select("content")
-          .eq("patient_id", patientId)
-          .order("created_at", { ascending: false })
-          .limit(1),
-        supabase
-          .from("markers")
-          .select("name, value, unit, status")
-          .eq("patient_id", patientId)
-          .order("date", { ascending: false })
-          .limit(50),
+      const [{ data: dietData }, { data: markerData }, { data: patientData }] = await Promise.all([
+        supabase.from("diet_recommendations").select("content").eq("patient_id", patientId).order("created_at", { ascending: false }).limit(1),
+        supabase.from("markers").select("name, value, unit, status").eq("patient_id", patientId).order("date", { ascending: false }).limit(50),
+        supabase.from("patients").select("diet_preferences").eq("id", patientId).maybeSingle(),
       ]);
 
       if (dietData?.[0]?.content) {
-        try {
-          setResult(JSON.parse(dietData[0].content));
-        } catch { /* ignore */ }
+        try { setResult(JSON.parse(dietData[0].content)); } catch { /* ignore */ }
       }
 
-      // Deduplicate markers
       const seen = new Set<string>();
       const unique: MarkerInfo[] = [];
       (markerData || []).forEach(m => {
@@ -112,6 +121,13 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
         }
       });
       setMarkers(unique);
+
+      if (patientData?.diet_preferences) {
+        const dp = patientData.diet_preferences as unknown as DietPreferences;
+        setDietPrefs(dp);
+        setEditPrefs(dp);
+      }
+
       setInitialLoading(false);
     };
     load();
@@ -147,69 +163,82 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
     toast({ title: "Meal logged!" });
   };
 
+  const handleSavePrefs = async () => {
+    if (!patientId) return;
+    const { error } = await supabase.from("patients").update({ diet_preferences: editPrefs as any }).eq("id", patientId);
+    if (error) {
+      toast({ title: "Could not save preferences", variant: "destructive" });
+    } else {
+      setDietPrefs(editPrefs);
+      setPrefsModalOpen(false);
+      toast({ title: "Food preferences saved!" });
+    }
+  };
+
+  const toggleEditArray = (key: "food_allergies" | "cuisine_preferences", value: string) => {
+    setEditPrefs(prev => {
+      const arr = prev[key];
+      return { ...prev, [key]: arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value] };
+    });
+  };
+
   const filterFoods = (foods: FoodItem[]) => {
     if (!activeFilter) return foods;
-    return foods.filter(f =>
-      f.nutrients?.some(n => n.toLowerCase().includes(activeFilter.toLowerCase()))
-    );
+    return foods.filter(f => f.nutrients?.some(n => n.toLowerCase().includes(activeFilter.toLowerCase())));
   };
 
   if (initialLoading) return null;
 
-  // Build deficiencies from markers if no AI result yet
   const deficiencies = result?.deficiencies || [];
-  const markerDeficiencies = markers.filter(m =>
-    m.status && ["low", "high"].includes(m.status.toLowerCase())
-  );
+  const markerDeficiencies = markers.filter(m => m.status && ["low", "high"].includes(m.status.toLowerCase()));
 
   const todayIndex = new Date().getDay();
   const todayKey = DAYS[todayIndex === 0 ? 6 : todayIndex - 1];
   const todayMeals = result?.meal_plan?.[todayKey];
 
+  // Nutrient progress (simple mock based on logged meals count)
+  const loggedCount = foodLog.length;
+  const nutrientProgress = [
+    { name: "Iron", target: "18mg/day", current: Math.min(loggedCount * 3, 18), unit: "mg", max: 18 },
+    { name: "Folate", target: "400mcg/day", current: Math.min(loggedCount * 80, 400), unit: "mcg", max: 400 },
+    { name: "Vitamin B12", target: "2.4mcg/day", current: Math.min(loggedCount * 0.5, 2.4), unit: "mcg", max: 2.4 },
+  ];
+
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-foreground flex items-center gap-3">
-        <Apple className="h-7 w-7 text-primary" />
-        What Should I Eat?
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-foreground flex items-center gap-3">
+          <Apple className="h-7 w-7 text-primary" />
+          What Should I Eat?
+        </h2>
+        <Button variant="outline" size="sm" onClick={() => { setEditPrefs(dietPrefs); setPrefsModalOpen(true); }} className="gap-2 text-sm">
+          <Settings2 className="h-4 w-4" />
+          Edit Food Preferences
+        </Button>
+      </div>
 
       {/* Generate button */}
       <div className="flex items-center gap-3">
-        <Button
-          onClick={() => handleGenerate(false)}
-          disabled={loading}
-          className="flex-1 text-base py-6 font-semibold"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              Generating your food guide…
-            </>
-          ) : (
-            "Get My Personalised Food Guide"
-          )}
+        <Button onClick={() => handleGenerate(false)} disabled={loading} className="flex-1 text-base py-6 font-semibold">
+          {loading ? (<><Loader2 className="h-5 w-5 animate-spin mr-2" />Generating your food guide…</>) : ("Get My Personalised Food Guide")}
         </Button>
         {result && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleGenerate(true)}
-            disabled={loading}
-            className="text-primary text-sm gap-1"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Regenerate
+          <Button variant="ghost" size="sm" onClick={() => handleGenerate(true)} disabled={loading} className="text-primary text-sm gap-1">
+            <RefreshCw className="h-4 w-4" /> Regenerate
           </Button>
         )}
       </div>
 
-      {/* SECTION A — Deficiency banner */}
+      {/* Deficiency banner — light warm background */}
       {(deficiencies.length > 0 || markerDeficiencies.length > 0) && (
-        <Card className="bg-foreground text-card">
+        <Card className="border border-primary/20" style={{ backgroundColor: "#FAFAFA" }}>
           <CardContent className="p-5 space-y-3">
-            <p className="text-sm font-medium text-card/80">
-              Based on your test results — deficiencies detected
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-foreground/80 uppercase tracking-wide">
+                Based on your test results — deficiencies detected
+              </p>
+              <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0">NEW</Badge>
+            </div>
             <div className="flex flex-wrap gap-2">
               {deficiencies.length > 0 ? (
                 deficiencies.map((d, i) => (
@@ -224,8 +253,7 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
               ) : (
                 markerDeficiencies.map((m, i) => (
                   <Badge key={i} className={`text-sm px-3 py-1 ${
-                    m.status?.toLowerCase() === "low" ? "bg-red-500 text-white" :
-                    "bg-amber-500 text-white"
+                    m.status?.toLowerCase() === "low" ? "bg-red-500 text-white" : "bg-amber-500 text-white"
                   }`}>
                     {m.status?.toLowerCase() === "low" ? "Low" : "High"} {m.name} · {m.value} {m.unit || ""}
                   </Badge>
@@ -243,36 +271,37 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
 
       {result && (
         <>
-          {/* SECTION B — Tabs */}
           <Tabs defaultValue="eat" className="space-y-5">
-            <TabsList className="grid grid-cols-4 w-full h-auto">
-              <TabsTrigger value="eat" className="py-3 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <TabsList className="grid grid-cols-4 w-full h-auto bg-transparent gap-2 p-0">
+              <TabsTrigger value="eat" className="py-3 text-sm font-semibold rounded-lg border data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-primary data-[state=inactive]:border-border data-[state=inactive]:text-muted-foreground">
                 Foods to Eat
               </TabsTrigger>
-              <TabsTrigger value="avoid" className="py-3 text-sm font-semibold">
+              <TabsTrigger value="avoid" className="py-3 text-sm font-semibold rounded-lg border data-[state=inactive]:border-border data-[state=inactive]:text-muted-foreground">
                 Foods to Avoid
               </TabsTrigger>
-              <TabsTrigger value="meal-plan" className="py-3 text-sm font-semibold relative">
+              <TabsTrigger value="meal-plan" className="py-3 text-sm font-semibold rounded-lg border relative data-[state=inactive]:border-border data-[state=inactive]:text-muted-foreground">
                 Weekly Meal Plan
                 <Badge className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0">new</Badge>
               </TabsTrigger>
-              <TabsTrigger value="food-log" className="py-3 text-sm font-semibold relative">
+              <TabsTrigger value="food-log" className="py-3 text-sm font-semibold rounded-lg border relative data-[state=inactive]:border-border data-[state=inactive]:text-muted-foreground">
                 My Food Log
                 <Badge className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0">new</Badge>
               </TabsTrigger>
             </TabsList>
 
-            {/* SECTION C — Nutrient filters (for eat/avoid tabs) */}
+            {/* Nutrient filter pills */}
             <div className="flex gap-2 overflow-x-auto pb-1">
+              <span className="text-sm text-muted-foreground whitespace-nowrap self-center mr-1">Filter by nutrient:</span>
               {NUTRIENT_FILTERS.map(n => (
                 <button
                   key={n}
                   onClick={() => setActiveFilter(activeFilter === n ? null : n)}
-                  className={`px-3 py-1.5 rounded-full text-sm font-medium border whitespace-nowrap transition-colors ${
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-sm font-medium border whitespace-nowrap transition-colors",
                     activeFilter === n
                       ? "border-primary text-primary bg-primary/5"
                       : "border-border text-muted-foreground hover:border-primary/30"
-                  }`}
+                  )}
                 >
                   {n}
                 </button>
@@ -281,55 +310,63 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
 
             {/* Foods to Eat */}
             <TabsContent value="eat">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {filterFoods(result.foods_to_eat || []).map((item, i) => (
-                  <Card key={i} className="border-[0.5px] rounded-xl hover:shadow-sm transition-shadow">
-                    <CardContent className="p-4 flex flex-col items-center text-center gap-2 relative">
-                      {item.serving && (
-                        <span className="absolute top-2 right-2 text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                          {item.serving}
-                        </span>
-                      )}
-                      <span className="text-4xl leading-none">{item.emoji}</span>
-                      <p className="text-base font-bold text-foreground leading-tight">{item.name}</p>
-                      <p className="text-xs text-muted-foreground leading-snug">{item.reason}</p>
-                      {item.nutrients && item.nutrients.length > 0 && (
-                        <div className="flex flex-wrap justify-center gap-1 mt-1">
-                          {item.nutrients.map((n, j) => (
-                            <span key={j} className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                              {n}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              {filterFoods(result.foods_to_eat || []).length === 0 ? (
+                <Card><CardContent className="p-8 text-center"><p className="text-base text-muted-foreground">No foods found for this nutrient filter</p></CardContent></Card>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {filterFoods(result.foods_to_eat || []).map((item, i) => (
+                    <Card key={i} className="border rounded-xl hover:bg-primary/5 transition-colors" style={{ borderColor: "#E5E7EB" }}>
+                      <CardContent className="p-4 flex flex-col items-center text-center gap-2 relative">
+                        {item.serving && (
+                          <span className="absolute top-2 right-2 text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                            {item.serving}
+                          </span>
+                        )}
+                        <span className="text-4xl leading-none">{item.emoji}</span>
+                        <p className="text-[15px] font-bold text-foreground leading-tight">{item.name}</p>
+                        <p className="text-xs text-muted-foreground leading-snug">{item.reason}</p>
+                        {item.nutrients && item.nutrients.length > 0 && (
+                          <div className="flex flex-wrap justify-center gap-1 mt-1">
+                            {item.nutrients.map((n, j) => (
+                              <span key={j} className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                                {n}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </TabsContent>
 
             {/* Foods to Avoid */}
             <TabsContent value="avoid">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {filterFoods(result.foods_to_avoid || []).map((item, i) => (
-                  <Card key={i} className="border-[0.5px] border-red-200 rounded-xl hover:shadow-sm transition-shadow">
-                    <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-                      <span className="text-4xl leading-none">{item.emoji}</span>
-                      <p className="text-base font-bold text-foreground leading-tight">{item.name}</p>
-                      <p className="text-xs text-muted-foreground leading-snug">{item.reason}</p>
-                      {item.nutrients && item.nutrients.length > 0 && (
-                        <div className="flex flex-wrap justify-center gap-1 mt-1">
-                          {item.nutrients.map((n, j) => (
-                            <span key={j} className="text-[10px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded">
-                              {n}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              {filterFoods(result.foods_to_avoid || []).length === 0 ? (
+                <Card><CardContent className="p-8 text-center"><p className="text-base text-muted-foreground">No foods found for this nutrient filter</p></CardContent></Card>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {filterFoods(result.foods_to_avoid || []).map((item, i) => (
+                    <Card key={i} className="border border-red-200 rounded-xl hover:bg-red-50/50 transition-colors">
+                      <CardContent className="p-4 flex flex-col items-center text-center gap-2">
+                        <span className="text-4xl leading-none">{item.emoji}</span>
+                        <p className="text-[15px] font-bold text-foreground leading-tight">{item.name}</p>
+                        <p className="text-xs text-muted-foreground leading-snug">{item.reason}</p>
+                        {item.nutrients && item.nutrients.length > 0 && (
+                          <div className="flex flex-wrap justify-center gap-1 mt-1">
+                            {item.nutrients.map((n, j) => (
+                              <span key={j} className="text-[10px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded">
+                                {n}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </TabsContent>
 
             {/* Weekly Meal Plan */}
@@ -340,14 +377,14 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
                     const meals = result.meal_plan[day];
                     if (!meals) return null;
                     return (
-                      <Card key={day} className="border-[0.5px] rounded-xl">
+                      <Card key={day} className="rounded-xl" style={{ borderColor: "#E5E7EB" }}>
                         <CardContent className="p-4">
                           <p className="text-sm font-bold text-foreground mb-3 capitalize">{day}</p>
                           <div className="grid grid-cols-4 gap-3">
                             {(["breakfast", "lunch", "snack", "dinner"] as const).map(meal => (
                               <div key={meal} className="bg-muted rounded-lg p-3 text-center">
                                 <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">{meal}</p>
-                                <p className="text-sm text-foreground">{meals[meal]}</p>
+                                <p className="text-sm text-foreground font-medium">{meals[meal]}</p>
                               </div>
                             ))}
                           </div>
@@ -357,11 +394,7 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
                   })}
                 </div>
               ) : (
-                <Card>
-                  <CardContent className="p-8 text-center">
-                    <p className="text-base text-muted-foreground">Generate your food guide to see a weekly meal plan</p>
-                  </CardContent>
-                </Card>
+                <Card><CardContent className="p-8 text-center"><p className="text-base text-muted-foreground">Generate your food guide to see a weekly meal plan</p></CardContent></Card>
               )}
             </TabsContent>
 
@@ -372,20 +405,15 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
                   <Plus className="h-4 w-4" /> Log a meal
                 </Button>
                 {foodLog.length === 0 ? (
-                  <Card>
-                    <CardContent className="p-8 text-center">
-                      <p className="text-base text-muted-foreground">No meals logged today. Tap "Log a meal" to start tracking.</p>
-                    </CardContent>
-                  </Card>
+                  <Card><CardContent className="p-8 text-center"><p className="text-base text-muted-foreground">No meals logged today. Tap "Log a meal" to start tracking.</p></CardContent></Card>
                 ) : (
                   <div className="space-y-2">
                     {foodLog.map((entry, i) => (
-                      <Card key={i} className="border-[0.5px] rounded-xl">
+                      <Card key={i} className="rounded-xl" style={{ borderColor: "#E5E7EB" }}>
                         <CardContent className="p-4 flex items-center justify-between">
                           <p className="text-base font-medium text-foreground">{entry.name}</p>
                           <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Clock className="h-3.5 w-3.5" />
-                            {entry.time}
+                            <Clock className="h-3.5 w-3.5" />{entry.time}
                           </div>
                         </CardContent>
                       </Card>
@@ -396,9 +424,9 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
             </TabsContent>
           </Tabs>
 
-          {/* SECTION E — Today's suggested meals */}
+          {/* Today's suggested meals */}
           {todayMeals && (
-            <Card className="border-[0.5px] rounded-xl">
+            <Card className="rounded-xl" style={{ borderColor: "#E5E7EB" }}>
               <CardContent className="p-5 space-y-3">
                 <div className="flex items-center gap-2">
                   <p className="text-base font-bold text-foreground">Today's suggested meals</p>
@@ -408,7 +436,7 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
                   {(["breakfast", "lunch", "snack", "dinner"] as const).map(meal => (
                     <div key={meal} className="bg-muted rounded-lg p-3 text-center">
                       <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">{meal}</p>
-                      <p className="text-sm text-foreground">{todayMeals[meal]}</p>
+                      <p className="text-sm text-foreground font-medium">{todayMeals[meal]}</p>
                     </div>
                   ))}
                 </div>
@@ -416,8 +444,35 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
             </Card>
           )}
 
-          {/* SECTION G — Meal log strip */}
-          <Card className="border-[0.5px] rounded-xl">
+          {/* Nutrient progress today */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <p className="text-base font-bold text-foreground">Nutrient progress today</p>
+              <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0">new</Badge>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {nutrientProgress.map((np) => {
+                const pct = Math.round((np.current / np.max) * 100);
+                const barColor = pct < 50 ? "bg-red-500" : pct < 80 ? "bg-amber-500" : "bg-emerald-500";
+                return (
+                  <Card key={np.name} className="rounded-xl" style={{ borderColor: "#E5E7EB" }}>
+                    <CardContent className="p-4 space-y-2">
+                      <p className="text-sm font-medium text-foreground">{np.name} — target {np.target}</p>
+                      <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {np.current}{np.unit} so far · {pct}%
+                      </p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Log what you ate strip */}
+          <Card className="rounded-xl" style={{ borderColor: "#E5E7EB" }}>
             <CardContent className="p-5 flex items-center justify-between">
               <div>
                 <p className="text-base font-bold text-foreground">Log what you ate today</p>
@@ -431,7 +486,7 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
         </>
       )}
 
-      {/* SECTION H — References */}
+      {/* References */}
       <div className="space-y-2 pt-4">
         <p className="text-xs font-medium text-muted-foreground">Sources</p>
         <div className="space-y-1">
@@ -450,9 +505,7 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
       {/* Log meal modal */}
       <Dialog open={logModalOpen} onOpenChange={setLogModalOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Log a meal</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Log a meal</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <Input
               value={logInput}
@@ -462,9 +515,67 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
             />
           </div>
           <DialogFooter>
-            <Button onClick={handleLogMeal} disabled={!logInput.trim()}>
-              Log Meal
-            </Button>
+            <Button onClick={handleLogMeal} disabled={!logInput.trim()}>Log Meal</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Food Preferences modal */}
+      <Dialog open={prefsModalOpen} onOpenChange={setPrefsModalOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Edit Food Preferences</DialogTitle></DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="space-y-3">
+              <Label className="text-base font-medium">Diet type</Label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {DIET_TYPES.map((dt) => (
+                  <button
+                    key={dt.value}
+                    type="button"
+                    onClick={() => setEditPrefs(p => ({ ...p, diet_type: dt.value }))}
+                    className={cn(
+                      "rounded-xl border-2 p-3 text-center transition-all cursor-pointer text-sm",
+                      editPrefs.diet_type === dt.value ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"
+                    )}
+                  >
+                    <span className="text-xl block mb-0.5">{dt.emoji}</span>
+                    {dt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-base font-medium">Food allergies</Label>
+              <div className="flex flex-wrap gap-2">
+                {FOOD_ALLERGIES_LIST.map((a) => (
+                  <button key={a} type="button" onClick={() => toggleEditArray("food_allergies", a)}
+                    className={cn("rounded-full px-3 py-1.5 text-sm font-medium border transition-all",
+                      editPrefs.food_allergies.includes(a) ? "bg-primary text-primary-foreground border-primary" : "border-border text-foreground hover:border-primary/40"
+                    )}>{a}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-base font-medium">Cuisine preferences</Label>
+              <div className="flex flex-wrap gap-2">
+                {CUISINE_LIST.map((c) => (
+                  <button key={c} type="button" onClick={() => toggleEditArray("cuisine_preferences", c)}
+                    className={cn("rounded-full px-3 py-1.5 text-sm font-medium border transition-all",
+                      editPrefs.cuisine_preferences.includes(c) ? "bg-primary text-primary-foreground border-primary" : "border-border text-foreground hover:border-primary/40"
+                    )}>{c}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-base font-medium">Meals per day: {editPrefs.meals_per_day}</Label>
+              <Slider value={[editPrefs.meals_per_day]} onValueChange={(v) => setEditPrefs(p => ({ ...p, meals_per_day: v[0] }))} min={2} max={6} step={1} className="py-2" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSavePrefs}>Save Preferences</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
