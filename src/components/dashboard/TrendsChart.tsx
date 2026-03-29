@@ -54,11 +54,14 @@ const TrendsChart = ({ trends, markers }: TrendsChartProps) => {
 
   const markerNames = [...new Set(trends.map((t) => t.name))];
 
-  // Build per-marker data
+  // Only include markers with 2+ data points on different dates
   const cards = markerNames.map((name) => {
     const points = trends
       .filter((t) => t.name === name)
       .sort((a, b) => a.date.localeCompare(b.date));
+    const uniqueDates = new Set(points.map((p) => p.date));
+    return { name, points, uniqueDates: uniqueDates.size };
+  }).filter((c) => c.uniqueDates >= 2).map(({ name, points }) => {
     const markerInfo = markers.find(
       (m) => m.name.toLowerCase() === name.toLowerCase()
     );
