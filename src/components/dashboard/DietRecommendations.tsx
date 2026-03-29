@@ -1,20 +1,19 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Apple, Loader2, Lightbulb } from "lucide-react";
+import { Apple, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
-interface Recommendation {
-  nutrient: string;
+interface FoodItem {
+  emoji: string;
+  name: string;
   reason: string;
-  foods: string[];
-  tip: string;
 }
 
 interface DietResult {
-  recommendations: Recommendation[];
-  disclaimer: string;
+  foods_to_eat: FoodItem[];
+  foods_to_avoid: FoodItem[];
 }
 
 interface DietRecommendationsProps {
@@ -25,6 +24,7 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
   const [result, setResult] = useState<DietResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"eat" | "avoid">("eat");
 
   useEffect(() => {
     if (!patientId) return;
@@ -39,7 +39,7 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
       if (data?.[0]?.content) {
         try {
           setResult(JSON.parse(data[0].content));
-        } catch { /* ignore parse errors */ }
+        } catch { /* ignore */ }
       }
       setInitialLoading(false);
     };
@@ -49,15 +49,13 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
   const handleGenerate = async () => {
     if (!patientId) return;
     setLoading(true);
-
     try {
       const { data, error } = await supabase.functions.invoke("get-diet-recommendation", {
         body: { patient_id: patientId },
       });
-
       if (error) throw error;
       setResult(data);
-      toast({ title: "Your food recommendations are ready!" });
+      toast({ title: "Your food guide is ready!" });
     } catch (err: any) {
       console.error(err);
       toast({ title: "Could not get recommendations", description: err.message, variant: "destructive" });
@@ -68,6 +66,8 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
 
   if (initialLoading) return null;
 
+  const foods = activeTab === "eat" ? result?.foods_to_eat : result?.foods_to_avoid;
+
   return (
     <div className="space-y-5">
       <h2 className="text-2xl font-bold text-foreground flex items-center gap-3">
@@ -75,55 +75,70 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
         What Should I Eat?
       </h2>
 
-      <Card>
-        <CardContent className="p-6 space-y-5">
-          <Button
-            onClick={handleGenerate}
-            disabled={loading}
-            className="w-full text-base py-6 font-semibold"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                Looking at your results…
-              </>
-            ) : (
-              "Get food recommendations based on my latest results"
-            )}
-          </Button>
+      <Button
+        onClick={handleGenerate}
+        disabled={loading}
+        className="w-full text-base py-6 font-semibold"
+      >
+        {loading ? (
+          <>
+            <Loader2 className="h-5 w-5 animate-spin mr-2" />
+            Looking at your results…
+          </>
+        ) : (
+          "Get my personalised food guide"
+        )}
+      </Button>
 
-          {result && result.recommendations && result.recommendations.length > 0 && (
-            <div className="space-y-4">
-              {result.recommendations.map((rec, i) => (
-                <div key={i} className="border rounded-xl p-5 space-y-3">
-                  <p className="text-lg font-bold text-primary">{rec.nutrient}</p>
-                  <p className="text-base text-foreground">{rec.reason}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {rec.foods.map((food, j) => (
-                      <span
-                        key={j}
-                        className="inline-flex items-center rounded-full bg-secondary border border-border px-4 py-1.5 text-sm font-medium text-foreground"
-                      >
-                        {food}
-                      </span>
-                    ))}
-                  </div>
-                  {rec.tip && (
-                    <div className="flex items-start gap-3 text-base text-muted-foreground">
-                      <Lightbulb className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
-                      <span>{rec.tip}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
+      {result && (result.foods_to_eat?.length > 0 || result.foods_to_avoid?.length > 0) && (
+        <div className="space-y-5">
+          {/* Toggle buttons */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => setActiveTab("eat")}
+              className={`flex-1 py-3.5 rounded-xl text-base font-bold transition-all ${
+                activeTab === "eat"
+                  ? "bg-emerald-500 text-white shadow-md"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+            >
+              🥗 Foods to Eat
+            </button>
+            <button
+              onClick={() => setActiveTab("avoid")}
+              className={`flex-1 py-3.5 rounded-xl text-base font-bold transition-all ${
+                activeTab === "avoid"
+                  ? "bg-red-500 text-white shadow-md"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+            >
+              🚫 Foods to Avoid
+            </button>
+          </div>
 
-              <p className="text-sm text-muted-foreground italic pt-3 border-t">
-                {result.disclaimer || "These suggestions support your health but do not replace medical advice. Discuss with your doctor."}
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          {/* Food grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {foods?.map((item, i) => (
+              <Card
+                key={i}
+                className={`p-4 flex flex-col items-center text-center gap-2 ${
+                  activeTab === "eat"
+                    ? "border-emerald-200 bg-white"
+                    : "border-red-200 bg-white"
+                }`}
+              >
+                <span className="text-4xl leading-none">{item.emoji}</span>
+                <p className="text-base font-bold text-foreground leading-tight">{item.name}</p>
+                <p className="text-xs text-muted-foreground leading-snug">{item.reason}</p>
+              </Card>
+            ))}
+          </div>
+
+          <p className="text-sm text-muted-foreground text-center">
+            Talk to your doctor before making big diet changes.
+          </p>
+        </div>
+      )}
     </div>
   );
 };
