@@ -1,0 +1,1 @@
+ALTER TABLE public.medications ADD COLUMN IF NOT EXISTS record_id uuid REFERENCES public.medical_records(id) ON DELETE CASCADE;
