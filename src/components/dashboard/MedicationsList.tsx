@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Pill, ChevronDown, ChevronUp, Loader2, AlertTriangle } from "lucide-react";
+import { Pill, Loader2, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -17,18 +16,29 @@ interface DrugDescription {
   plain_description: string | null;
   side_effects: string | null;
   avoid: string | null;
-  _ai?: {
-    what_it_does?: string;
-    how_it_works?: string;
-    common_side_effects?: string[];
-    what_to_avoid?: string;
-    important_note?: string;
-  };
 }
 
 interface MedicationsListProps {
   patientId: string | null;
 }
+
+const friendlyFrequency = (freq: string | null): string => {
+  if (!freq) return "";
+  const lower = freq.toLowerCase().trim();
+  const map: Record<string, string> = {
+    od: "Once a day",
+    bd: "Twice a day",
+    tds: "3 times a day",
+    qid: "4 times a day",
+    qds: "4 times a day",
+    prn: "As needed",
+    hs: "At bedtime",
+    stat: "Right away (one time)",
+    "once daily": "Once a day",
+    "twice daily": "Twice a day",
+  };
+  return map[lower] || freq;
+};
 
 const MedicationsList = ({ patientId }: MedicationsListProps) => {
   const [medications, setMedications] = useState<Medication[]>([]);
@@ -66,7 +76,6 @@ const MedicationsList = ({ patientId }: MedicationsListProps) => {
     setExpandedId(med.id);
 
     try {
-      // Check DB first
       const { data: existing } = await supabase
         .from("drug_descriptions")
         .select("plain_description, side_effects, avoid")
@@ -92,7 +101,7 @@ const MedicationsList = ({ patientId }: MedicationsListProps) => {
       setDescriptions((prev) => ({ ...prev, [med.id]: data }));
     } catch (err: any) {
       console.error(err);
-      toast({ title: "Failed to get description", description: err.message, variant: "destructive" });
+      toast({ title: "Could not get explanation", description: err.message, variant: "destructive" });
       setExpandedId(null);
     } finally {
       setLoadingId(null);
@@ -102,8 +111,15 @@ const MedicationsList = ({ patientId }: MedicationsListProps) => {
   if (loading) {
     return (
       <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2"><Pill className="h-5 w-5 text-primary" /> My Medications</CardTitle></CardHeader>
-        <CardContent><p className="text-sm text-muted-foreground">Loading…</p></CardContent>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-3 text-xl">
+            <Pill className="h-6 w-6 text-primary" />
+            My Medications
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-base text-muted-foreground">Loading your medications…</p>
+        </CardContent>
       </Card>
     );
   }
@@ -111,86 +127,116 @@ const MedicationsList = ({ patientId }: MedicationsListProps) => {
   if (medications.length === 0) return null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Pill className="h-5 w-5 text-primary" />
-          My Medications
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <div className="space-y-5">
+      <h2 className="text-2xl font-bold text-foreground flex items-center gap-3">
+        <Pill className="h-7 w-7 text-primary" />
+        My Medications
+      </h2>
+
+      <div className="space-y-4">
         {medications.map((med) => {
           const desc = descriptions[med.id];
           const isExpanded = expandedId === med.id;
           const isLoading = loadingId === med.id;
 
           return (
-            <div key={med.id} className="border rounded-lg overflow-hidden">
-              <div className="flex items-center justify-between p-4">
-                <div>
-                  <p className="font-medium text-foreground">{med.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {[med.dosage, med.frequency].filter(Boolean).join(" · ") || "No dosage info"}
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDescribe(med)}
-                  disabled={isLoading}
-                  className="shrink-0"
-                >
-                  {isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                  ) : isExpanded ? (
-                    <ChevronUp className="h-4 w-4 mr-1" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 mr-1" />
-                  )}
-                  What is this?
-                </Button>
-              </div>
-
-              {isExpanded && desc && (
-                <div className="px-4 pb-4 space-y-3 border-t bg-muted/30 pt-3">
-                  {desc.plain_description && (
-                    <p className="text-sm text-foreground">{desc.plain_description}</p>
-                  )}
-                  {desc.side_effects && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Common side effects</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {desc.side_effects.split(", ").map((se, i) => (
-                          <Badge key={i} variant="secondary" className="text-xs">{se}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {desc.avoid && (
-                    <div className="flex items-start gap-2 text-sm">
-                      <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-                      <span className="text-foreground">{desc.avoid}</span>
-                    </div>
-                  )}
-                  <p className="text-xs text-muted-foreground italic">
-                    Always consult your doctor before making any changes to your medication.
-                  </p>
-                </div>
-              )}
-
-              {isExpanded && isLoading && (
-                <div className="px-4 pb-4 border-t bg-muted/30 pt-3">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Getting plain-language explanation…
+            <Card key={med.id} className="overflow-hidden">
+              <CardContent className="p-0">
+                {/* Main medication info */}
+                <div className="flex items-start gap-5 p-6">
+                  <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0 mt-1">
+                    <Pill className="h-7 w-7 text-primary" />
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <p className="text-lg font-bold text-foreground">{med.name}</p>
+                    <p className="text-base text-muted-foreground">
+                      {[med.dosage, friendlyFrequency(med.frequency)]
+                        .filter(Boolean)
+                        .join(" · ") || "No dosage information available"}
+                    </p>
                   </div>
                 </div>
-              )}
-            </div>
+
+                {/* Action button */}
+                <div className="px-6 pb-6">
+                  <Button
+                    onClick={() => handleDescribe(med)}
+                    disabled={isLoading}
+                    className="w-full text-base py-6 font-semibold"
+                    variant={isExpanded ? "secondary" : "default"}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                        Getting explanation…
+                      </>
+                    ) : isExpanded ? (
+                      "Hide explanation"
+                    ) : (
+                      "Explain this medication to me"
+                    )}
+                  </Button>
+                </div>
+
+                {/* Loading state */}
+                {isExpanded && isLoading && (
+                  <div className="px-6 pb-6">
+                    <div className="rounded-xl bg-[hsl(var(--warm-yellow))] border border-[hsl(var(--warm-yellow-border))] p-6">
+                      <div className="flex items-center gap-3 text-base text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        Writing a simple explanation for you…
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Expanded description */}
+                {isExpanded && desc && (
+                  <div className="px-6 pb-6">
+                    <div className="rounded-xl bg-[hsl(var(--warm-yellow))] border border-[hsl(var(--warm-yellow-border))] p-6 space-y-5">
+                      {desc.plain_description && (
+                        <p className="text-base text-foreground leading-relaxed">
+                          {desc.plain_description}
+                        </p>
+                      )}
+
+                      {desc.side_effects && (
+                        <div className="space-y-2">
+                          <p className="text-base font-semibold text-foreground">
+                            Possible side effects:
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {desc.side_effects.split(", ").map((se, i) => (
+                              <span
+                                key={i}
+                                className="inline-flex items-center rounded-full bg-background border px-4 py-1.5 text-sm font-medium text-foreground"
+                              >
+                                {se}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {desc.avoid && (
+                        <div className="flex items-start gap-3">
+                          <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                          <p className="text-base text-foreground">{desc.avoid}</p>
+                        </div>
+                      )}
+
+                      <p className="text-sm text-muted-foreground italic pt-2 border-t">
+                        Always consult your doctor before making any changes to your medication.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           );
         })}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 

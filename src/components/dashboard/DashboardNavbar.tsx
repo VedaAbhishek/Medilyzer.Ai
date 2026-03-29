@@ -8,13 +8,13 @@ interface DashboardNavbarProps {
 
 const DashboardNavbar = ({ name, onSignOut }: DashboardNavbarProps) => (
   <header className="sticky top-0 z-30 border-b bg-card">
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-      <span className="text-xl font-bold text-primary tracking-tight">Medilyzer</span>
-      <div className="flex items-center gap-4">
-        <span className="text-sm font-medium text-foreground hidden sm:inline">{name}</span>
-        <Button variant="outline" size="sm" onClick={onSignOut} className="gap-1.5">
-          <LogOut className="h-4 w-4" />
-          <span className="hidden sm:inline">Sign Out</span>
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
+      <span className="text-2xl font-bold text-primary tracking-tight">Medilyzer</span>
+      <div className="flex items-center gap-5">
+        <span className="text-lg font-medium text-foreground">Hi, {name} 👋</span>
+        <Button variant="outline" size="default" onClick={onSignOut} className="gap-2 text-base px-5">
+          <LogOut className="h-5 w-5" />
+          Sign Out
         </Button>
       </div>
     </div>

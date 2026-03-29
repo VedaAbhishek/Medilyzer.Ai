@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Apple, Loader2, Lightbulb } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -27,7 +26,6 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
 
-  // Load existing recommendation from DB
   useEffect(() => {
     if (!patientId) return;
     const load = async () => {
@@ -59,10 +57,10 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
 
       if (error) throw error;
       setResult(data);
-      toast({ title: "Diet recommendations updated" });
+      toast({ title: "Your food recommendations are ready!" });
     } catch (err: any) {
       console.error(err);
-      toast({ title: "Failed to get recommendations", description: err.message, variant: "destructive" });
+      toast({ title: "Could not get recommendations", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -71,61 +69,62 @@ const DietRecommendations = ({ patientId }: DietRecommendationsProps) => {
   if (initialLoading) return null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Apple className="h-5 w-5 text-primary" />
-          What Should I Eat?
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Button
-          onClick={handleGenerate}
-          disabled={loading}
-          variant="outline"
-          className="w-full"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              Analysing your results…
-            </>
-          ) : (
-            "Get diet recommendations based on my latest results"
-          )}
-        </Button>
+    <div className="space-y-5">
+      <h2 className="text-2xl font-bold text-foreground flex items-center gap-3">
+        <Apple className="h-7 w-7 text-primary" />
+        What Should I Eat?
+      </h2>
 
-        {result && result.recommendations && result.recommendations.length > 0 && (
-          <div className="space-y-3">
-            {result.recommendations.map((rec, i) => (
-              <div key={i} className="border rounded-lg p-4 space-y-2">
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-primary/10 text-primary hover:bg-primary/20 border-0">
-                    {rec.nutrient}
-                  </Badge>
-                </div>
-                <p className="text-sm text-foreground">{rec.reason}</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {rec.foods.map((food, j) => (
-                    <Badge key={j} variant="secondary" className="text-xs">{food}</Badge>
-                  ))}
-                </div>
-                {rec.tip && (
-                  <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                    <Lightbulb className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-                    <span>{rec.tip}</span>
+      <Card>
+        <CardContent className="p-6 space-y-5">
+          <Button
+            onClick={handleGenerate}
+            disabled={loading}
+            className="w-full text-base py-6 font-semibold"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                Looking at your results…
+              </>
+            ) : (
+              "Get food recommendations based on my latest results"
+            )}
+          </Button>
+
+          {result && result.recommendations && result.recommendations.length > 0 && (
+            <div className="space-y-4">
+              {result.recommendations.map((rec, i) => (
+                <div key={i} className="border rounded-xl p-5 space-y-3">
+                  <p className="text-lg font-bold text-primary">{rec.nutrient}</p>
+                  <p className="text-base text-foreground">{rec.reason}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {rec.foods.map((food, j) => (
+                      <span
+                        key={j}
+                        className="inline-flex items-center rounded-full bg-secondary border border-border px-4 py-1.5 text-sm font-medium text-foreground"
+                      >
+                        {food}
+                      </span>
+                    ))}
                   </div>
-                )}
-              </div>
-            ))}
+                  {rec.tip && (
+                    <div className="flex items-start gap-3 text-base text-muted-foreground">
+                      <Lightbulb className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+                      <span>{rec.tip}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
 
-            <p className="text-xs text-muted-foreground italic pt-2 border-t">
-              {result.disclaimer || "These suggestions support your health but do not replace medical advice. Discuss with your doctor."}
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              <p className="text-sm text-muted-foreground italic pt-3 border-t">
+                {result.disclaimer || "These suggestions support your health but do not replace medical advice. Discuss with your doctor."}
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

@@ -1,6 +1,5 @@
 import { useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Upload, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,7 +20,7 @@ const UploadButton = ({ patientId, onUploadComplete }: UploadButtonProps) => {
     if (!file || !user || !patientId) return;
 
     if (file.type !== "application/pdf") {
-      toast({ title: "Invalid file", description: "Please upload a PDF file.", variant: "destructive" });
+      toast({ title: "Wrong file type", description: "Please choose a PDF file.", variant: "destructive" });
       return;
     }
 
@@ -58,29 +57,33 @@ const UploadButton = ({ patientId, onUploadComplete }: UploadButtonProps) => {
   };
 
   return (
-    <Card className="flex items-center justify-center">
-      <CardContent className="p-6 text-center space-y-3">
-        <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+    <Card
+      className="border-2 border-dashed border-primary/30 hover:border-primary/50 transition-colors cursor-pointer"
+      onClick={() => !uploading && fileRef.current?.click()}
+    >
+      <CardContent className="p-10 flex flex-col items-center justify-center text-center space-y-4">
+        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
           {uploading ? (
-            <Loader2 className="h-5 w-5 text-primary animate-spin" />
+            <Loader2 className="h-8 w-8 text-primary animate-spin" />
           ) : (
-            <Upload className="h-5 w-5 text-primary" />
+            <Upload className="h-8 w-8 text-primary" />
           )}
         </div>
-        <Button
-          className="w-full"
-          disabled={uploading || !patientId}
-          onClick={() => fileRef.current?.click()}
-        >
-          {uploading ? "Analysing report…" : "Upload Lab Report or Prescription"}
-        </Button>
-        <p className="text-xs text-muted-foreground">PDF files only</p>
+        <div className="space-y-1">
+          <p className="text-lg font-semibold text-foreground">
+            {uploading ? "Reading your report…" : "Tap here to upload your medical report"}
+          </p>
+          <p className="text-base text-muted-foreground">
+            {uploading ? "This may take a moment" : "PDF files only — lab reports or prescriptions"}
+          </p>
+        </div>
         <input
           ref={fileRef}
           type="file"
           accept=".pdf,application/pdf"
           className="hidden"
           onChange={handleFileChange}
+          onClick={(e) => e.stopPropagation()}
         />
       </CardContent>
     </Card>
