@@ -16,7 +16,7 @@ import FloatingChat from "@/components/dashboard/FloatingChat";
 const Dashboard = () => {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
-  const { patientId, patient, markers, trends, summary, hasReports, loading, refetch } = usePatientData();
+  const { patientId, patient, markers, trends, summary, hasReports, loading, medications, refetch } = usePatientData();
   const [activeSection, setActiveSection] = useState<DashboardSection>("home");
 
   const handleSignOut = async () => {
@@ -40,6 +40,7 @@ const Dashboard = () => {
             loading={loading}
             patientId={patientId}
             refetch={refetch}
+            medications={medications}
           />
         );
       case "reports":

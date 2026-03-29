@@ -21,6 +21,12 @@ interface PatientInfo {
   blood_type: string | null;
   conditions: string[] | null;
   allergies: string[] | null;
+  dob: string | null;
+}
+
+interface MedicationInfo {
+  name: string;
+  dosage: string | null;
 }
 
 export function usePatientData() {
@@ -29,6 +35,7 @@ export function usePatientData() {
   const [patient, setPatient] = useState<PatientInfo | null>(null);
   const [markers, setMarkers] = useState<Marker[]>([]);
   const [trends, setTrends] = useState<TrendPoint[]>([]);
+  const [medications, setMedications] = useState<MedicationInfo[]>([]);
   const [summary, setSummary] = useState<string | null>(null);
   const [hasReports, setHasReports] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -40,7 +47,7 @@ export function usePatientData() {
     // Get or create patient record
     let { data: patientRow } = await supabase
       .from("patients")
-      .select("id, name, blood_type, conditions, allergies")
+      .select("id, name, blood_type, conditions, allergies, dob")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -48,7 +55,7 @@ export function usePatientData() {
       const { data: newPatient } = await supabase
         .from("patients")
         .insert({ user_id: user.id, name: user.user_metadata?.name || "Patient" })
-        .select("id, name, blood_type, conditions, allergies")
+        .select("id, name, blood_type, conditions, allergies, dob")
         .single();
       patientRow = newPatient;
     }
@@ -96,6 +103,13 @@ export function usePatientData() {
         setTrends([]);
       }
 
+      // Fetch medications
+      const { data: medRows } = await supabase
+        .from("medications")
+        .select("name, dosage")
+        .eq("patient_id", patientRow.id);
+      setMedications(medRows || []);
+
       // Fetch latest summary
       const { data: summaryRows } = await supabase
         .from("summaries")
@@ -114,5 +128,5 @@ export function usePatientData() {
     fetchData();
   }, [fetchData]);
 
-  return { patientId, patient, markers, trends, summary, hasReports, loading, refetch: fetchData };
+  return { patientId, patient, markers, trends, summary, hasReports, loading, medications, refetch: fetchData };
 }
