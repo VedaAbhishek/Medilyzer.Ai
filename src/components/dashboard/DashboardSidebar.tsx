@@ -1,4 +1,4 @@
-import { Home, FileText, BarChart3, Pill, Salad, MessageCircle, Stethoscope, LogOut } from "lucide-react";
+import { Home, FileText, BarChart3, Pill, Salad, Stethoscope, LogOut } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
