@@ -46,7 +46,7 @@ const Dashboard = () => {
       case "reports":
         return <ReportsSection patientId={patientId} refetch={refetch} />;
       case "results":
-        return <TestResultsSection markers={markers} loading={loading} />;
+        return <TestResultsSection patientId={patientId} />;
       case "medications":
         return <MedicationsSection patientId={patientId} />;
       case "diet":
