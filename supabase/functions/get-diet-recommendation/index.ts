@@ -23,17 +23,11 @@ serve(async (req) => {
 
     const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    const { data: allMarkers } = await sb
-      .from("markers")
-      .select("name, value, unit, status, ref_min, ref_max, date")
-      .eq("patient_id", patient_id)
-      .order("date", { ascending: false })
-      .limit(50);
-
-    const { data: meds } = await sb
-      .from("medications")
-      .select("name, dosage, frequency")
-      .eq("patient_id", patient_id);
+    const [{ data: allMarkers }, { data: meds }, { data: patientRow }] = await Promise.all([
+      sb.from("markers").select("name, value, unit, status, ref_min, ref_max, date").eq("patient_id", patient_id).order("date", { ascending: false }).limit(50),
+      sb.from("medications").select("name, dosage, frequency").eq("patient_id", patient_id),
+      sb.from("patients").select("diet_preferences").eq("id", patient_id).maybeSingle(),
+    ]);
 
     if ((!allMarkers || allMarkers.length === 0) && (!meds || meds.length === 0)) {
       return new Response(JSON.stringify({ deficiencies: [], foods_to_eat: [], foods_to_avoid: [], meal_plan: {} }), {
@@ -43,6 +37,11 @@ serve(async (req) => {
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+
+    const dietPrefs = patientRow?.diet_preferences;
+    const dietPrefsText = dietPrefs
+      ? `\n\nPatient diet preferences: ${JSON.stringify(dietPrefs)}\nIMPORTANT: All food recommendations and meal plans MUST respect these dietary preferences. Do not suggest foods that conflict with the patient's diet type, food allergies, or cuisine preferences.`
+      : "";
 
     const prompt = `Based on this patient's lab results and medications, generate a personalised food guide.
 
@@ -76,9 +75,10 @@ RULES:
 - Base all recommendations strictly on the patient's actual lab data
 - Do not invent deficiencies not present in the data
 - Use only foods from credible nutrition sources
+- IMPORTANT: The nutrients array for each food MUST contain the nutrient names it is rich in (e.g. ["Iron", "B12", "Folate"])
 
 Patient markers: ${JSON.stringify(allMarkers)}
-Patient medications: ${JSON.stringify(meds)}`;
+Patient medications: ${JSON.stringify(meds)}${dietPrefsText}`;
 
     const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

@@ -15,6 +15,13 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
+interface DietPreferences {
+  diet_type: string;
+  food_allergies: string[];
+  cuisine_preferences: string[];
+  meals_per_day: number;
+}
+
 interface ProfileData {
   name: string;
   dob: Date | undefined;
@@ -46,6 +53,7 @@ interface ProfileData {
   doctor_clinic: string;
   insurance_provider: string;
   insurance_member_id: string;
+  diet_preferences: DietPreferences;
 }
 
 const COMMON_CONDITIONS = ["Diabetes", "PCOS", "Thyroid disorder", "Hypertension", "Asthma", "Arthritis", "Heart disease", "Depression", "Anxiety"];
@@ -57,9 +65,25 @@ const SEX_OPTIONS = [
   { value: "prefer_not_to_say", label: "Prefer not to say", emoji: "🤝" },
 ];
 
+const DIET_TYPES = [
+  { value: "no_restrictions", label: "No restrictions", emoji: "🍽️" },
+  { value: "vegetarian", label: "Vegetarian", emoji: "🥬" },
+  { value: "vegan", label: "Vegan", emoji: "🌱" },
+  { value: "pescatarian", label: "Pescatarian", emoji: "🐟" },
+  { value: "gluten_free", label: "Gluten free", emoji: "🌾" },
+  { value: "dairy_free", label: "Dairy free", emoji: "🥛" },
+  { value: "halal", label: "Halal", emoji: "☪️" },
+  { value: "kosher", label: "Kosher", emoji: "✡️" },
+];
+
+const FOOD_ALLERGIES = ["Peanuts", "Tree nuts", "Shellfish", "Fish", "Eggs", "Soy", "Wheat", "Dairy", "Sesame", "Other"];
+const CUISINE_PREFS = ["American", "Mediterranean", "Mexican", "Indian", "Asian", "Middle Eastern", "Italian", "No preference"];
+
+// 5 content steps: 1=basic, 2=health, 3=food prefs, 4=female, 5=emergency
 const STEP_INFO = [
   { heading: "Let's start with the basics", sub: "This helps doctors understand your background at a glance" },
   { heading: "Tell us about your health", sub: "So we can give you more relevant insights from your reports" },
+  { heading: "Your Food Preferences", sub: "This helps us recommend meals and foods tailored to you" },
   { heading: "A few more details", sub: "This information helps us personalise your health insights" },
   { heading: "Almost done!", sub: "Emergency contacts and doctor info — just in case" },
 ];
@@ -104,9 +128,14 @@ const SetupProfile = () => {
     doctor_clinic: "",
     insurance_provider: "",
     insurance_member_id: "",
+    diet_preferences: {
+      diet_type: "",
+      food_allergies: [],
+      cuisine_preferences: [],
+      meals_per_day: 3,
+    },
   });
 
-  // Load existing patient data for edit mode
   useEffect(() => {
     if (!user) return;
     const load = async () => {
@@ -117,6 +146,7 @@ const SetupProfile = () => {
         .maybeSingle();
 
       if (p) {
+        const dietPrefs = (p as any).diet_preferences as DietPreferences | null;
         setData((prev) => ({
           ...prev,
           name: p.name || prev.name,
@@ -145,10 +175,10 @@ const SetupProfile = () => {
           doctor_clinic: (p as any).doctor_clinic || "",
           insurance_provider: (p as any).insurance_provider || "",
           insurance_member_id: (p as any).insurance_member_id || "",
+          diet_preferences: dietPrefs || prev.diet_preferences,
         }));
       }
 
-      // Pre-fill name from profile if empty
       if (!p?.name && profile?.name) {
         setData((prev) => ({ ...prev, name: profile.name }));
       }
@@ -158,12 +188,34 @@ const SetupProfile = () => {
     load();
   }, [user, profile]);
 
-  const totalSteps = data.sex === "female" ? 4 : 3;
-  const adjustedStep = data.sex !== "female" && step >= 3 ? step + 1 : step;
-  const displayStep = step;
+  // Content steps: 1=basic, 2=health, 3=food prefs, 4=female (conditional), 5=emergency
+  // Display steps skip female step if not female
+  const isFemale = data.sex === "female";
+  const totalSteps = isFemale ? 5 : 4;
+
+  const getContentStep = () => {
+    if (isFemale) return step; // 1,2,3,4,5
+    // non-female: step 1->1, 2->2, 3->3, 4->5 (skip 4=female)
+    if (step <= 3) return step;
+    return 5; // step 4 maps to content 5
+  };
+
+  const contentStep = getContentStep();
+  const stepInfo = STEP_INFO[contentStep - 1];
 
   const update = <K extends keyof ProfileData>(key: K, value: ProfileData[K]) =>
     setData((prev) => ({ ...prev, [key]: value }));
+
+  const updateDietPref = <K extends keyof DietPreferences>(key: K, value: DietPreferences[K]) =>
+    setData((prev) => ({ ...prev, diet_preferences: { ...prev.diet_preferences, [key]: value } }));
+
+  const toggleDietArray = (key: "food_allergies" | "cuisine_preferences", value: string) => {
+    setData((prev) => {
+      const arr = prev.diet_preferences[key];
+      const next = arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value];
+      return { ...prev, diet_preferences: { ...prev.diet_preferences, [key]: next } };
+    });
+  };
 
   const addTag = (key: "conditions" | "allergies", value: string) => {
     const trimmed = value.trim();
@@ -177,9 +229,7 @@ const SetupProfile = () => {
   };
 
   const getHeightCm = (): number | null => {
-    if (data.height_unit === "metric") {
-      return data.height_value ? Number(data.height_value) : null;
-    }
+    if (data.height_unit === "metric") return data.height_value ? Number(data.height_value) : null;
     const ft = Number(data.height_ft) || 0;
     const inc = Number(data.height_in) || 0;
     if (ft === 0 && inc === 0) return null;
@@ -208,14 +258,14 @@ const SetupProfile = () => {
       smoker: data.smoker || null,
       alcohol: data.alcohol || null,
       exercise: data.exercise || null,
-      pregnant: data.sex === "female" ? data.pregnant || null : null,
-      last_period: data.sex === "female" && data.last_period ? format(data.last_period, "yyyy-MM-dd") : null,
-      cycle_length: data.sex === "female" ? data.cycle_length : null,
-      periods_regular: data.sex === "female" ? data.periods_regular || null : null,
-      pcos_diagnosed: data.sex === "female" ? data.pcos_diagnosed || null : null,
-      hormonal_contraception: data.sex === "female" ? data.hormonal_contraception || null : null,
-      contraception_type: data.sex === "female" && data.hormonal_contraception === "yes" ? data.contraception_type || null : null,
-      menopause: data.sex === "female" ? data.menopause || null : null,
+      pregnant: isFemale ? data.pregnant || null : null,
+      last_period: isFemale && data.last_period ? format(data.last_period, "yyyy-MM-dd") : null,
+      cycle_length: isFemale ? data.cycle_length : null,
+      periods_regular: isFemale ? data.periods_regular || null : null,
+      pcos_diagnosed: isFemale ? data.pcos_diagnosed || null : null,
+      hormonal_contraception: isFemale ? data.hormonal_contraception || null : null,
+      contraception_type: isFemale && data.hormonal_contraception === "yes" ? data.contraception_type || null : null,
+      menopause: isFemale ? data.menopause || null : null,
       emergency_contact_name: data.emergency_contact_name || null,
       emergency_contact_phone: data.emergency_contact_phone || null,
       emergency_contact_relationship: data.emergency_contact_relationship || null,
@@ -223,6 +273,7 @@ const SetupProfile = () => {
       doctor_clinic: data.doctor_clinic || null,
       insurance_provider: data.insurance_provider || null,
       insurance_member_id: data.insurance_member_id || null,
+      diet_preferences: data.diet_preferences.diet_type ? data.diet_preferences : null,
       profile_completed: true,
     };
 
@@ -241,25 +292,8 @@ const SetupProfile = () => {
     setSaving(false);
   };
 
-  const nextStep = () => {
-    if (step < totalSteps) setStep(step + 1);
-  };
-  const prevStep = () => {
-    if (step > 1) setStep(step - 1);
-  };
-
-  // Determine actual content step
-  const getContentStep = () => {
-    if (data.sex !== "female") {
-      if (step === 1) return 1;
-      if (step === 2) return 2;
-      if (step === 3) return 4; // skip step 3 (female-only)
-    }
-    return step;
-  };
-
-  const contentStep = getContentStep();
-  const stepInfo = STEP_INFO[contentStep - 1];
+  const nextStep = () => { if (step < totalSteps) setStep(step + 1); };
+  const prevStep = () => { if (step > 1) setStep(step - 1); };
 
   if (loadingExisting) {
     return (
@@ -360,18 +394,15 @@ const SetupProfile = () => {
   return (
     <div className="min-h-screen bg-muted flex items-start justify-center px-4 py-8 sm:py-12">
       <div className="w-full max-w-2xl space-y-6">
-        {/* Logo */}
         <h1 className="text-2xl font-bold text-primary text-center">Medilyzer</h1>
 
-        {/* Progress bar */}
         <div className="space-y-2">
-          <p className="text-sm text-muted-foreground text-center">Step {displayStep} of {totalSteps}</p>
+          <p className="text-sm text-muted-foreground text-center">Step {step} of {totalSteps}</p>
           <div className="w-full h-2 bg-border rounded-full overflow-hidden">
-            <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${(displayStep / totalSteps) * 100}%` }} />
+            <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${(step / totalSteps) * 100}%` }} />
           </div>
         </div>
 
-        {/* Step heading */}
         <div className="text-center space-y-1">
           <h2 className="text-2xl font-bold text-foreground">{stepInfo.heading}</h2>
           <p className="text-base text-muted-foreground">{stepInfo.sub}</p>
@@ -510,8 +541,87 @@ const SetupProfile = () => {
               </>
             )}
 
-            {/* STEP 3 — Female-only */}
+            {/* STEP 3 — Food Preferences */}
             {contentStep === 3 && (
+              <>
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">Diet type</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {DIET_TYPES.map((dt) => (
+                      <SelectableCard
+                        key={dt.value}
+                        selected={data.diet_preferences.diet_type === dt.value}
+                        onClick={() => updateDietPref("diet_type", dt.value)}
+                      >
+                        <span className="text-2xl block mb-1">{dt.emoji}</span>
+                        <span className="text-sm font-medium">{dt.label}</span>
+                      </SelectableCard>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">Food allergies</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {FOOD_ALLERGIES.map((a) => (
+                      <button
+                        key={a}
+                        type="button"
+                        onClick={() => toggleDietArray("food_allergies", a)}
+                        className={cn(
+                          "rounded-full px-4 py-2 text-sm font-medium border transition-all",
+                          data.diet_preferences.food_allergies.includes(a)
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-card text-foreground border-border hover:border-primary/40"
+                        )}
+                      >
+                        {a}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">Cuisine preferences</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {CUISINE_PREFS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => toggleDietArray("cuisine_preferences", c)}
+                        className={cn(
+                          "rounded-full px-4 py-2 text-sm font-medium border transition-all",
+                          data.diet_preferences.cuisine_preferences.includes(c)
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-card text-foreground border-border hover:border-primary/40"
+                        )}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">Meals per day: {data.diet_preferences.meals_per_day}</Label>
+                  <Slider
+                    value={[data.diet_preferences.meals_per_day]}
+                    onValueChange={(v) => updateDietPref("meals_per_day", v[0])}
+                    min={2}
+                    max={6}
+                    step={1}
+                    className="py-2"
+                  />
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>2 meals</span>
+                    <span>6 meals</span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* STEP 4 — Female-only */}
+            {contentStep === 4 && (
               <>
                 <div className="space-y-2">
                   <Label className="text-base font-medium">Are you currently pregnant?</Label>
@@ -608,8 +718,8 @@ const SetupProfile = () => {
               </>
             )}
 
-            {/* STEP 4 — Emergency & Doctor */}
-            {contentStep === 4 && (
+            {/* STEP 5 — Emergency & Doctor */}
+            {contentStep === 5 && (
               <>
                 <div className="space-y-2">
                   <Label className="text-base font-medium">Emergency contact name</Label>
@@ -658,7 +768,6 @@ const SetupProfile = () => {
           </CardContent>
         </Card>
 
-        {/* Navigation */}
         <div className="flex justify-between items-center gap-4">
           {step > 1 ? (
             <Button variant="outline" onClick={prevStep} className="h-12 px-6 text-base gap-2">
