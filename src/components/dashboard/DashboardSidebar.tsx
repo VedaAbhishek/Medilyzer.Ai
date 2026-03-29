@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 
-export type DashboardSection = "home" | "reports" | "results" | "medications" | "diet" | "ask" | "doctor";
+export type DashboardSection = "home" | "reports" | "results" | "medications" | "diet" | "doctor";
 
 const navItems: { id: DashboardSection; label: string; icon: typeof Home }[] = [
   { id: "home", label: "Home", icon: Home },
@@ -18,7 +18,6 @@ const navItems: { id: DashboardSection; label: string; icon: typeof Home }[] = [
   { id: "results", label: "My Test Results", icon: BarChart3 },
   { id: "medications", label: "My Medications", icon: Pill },
   { id: "diet", label: "What Should I Eat?", icon: Salad },
-  { id: "ask", label: "Ask a Question", icon: MessageCircle },
   { id: "doctor", label: "Find a Doctor", icon: Stethoscope },
 ];
 

@@ -10,8 +10,8 @@ import ReportsSection from "@/components/dashboard/sections/ReportsSection";
 import TestResultsSection from "@/components/dashboard/sections/TestResultsSection";
 import MedicationsSection from "@/components/dashboard/sections/MedicationsSection";
 import DietSection from "@/components/dashboard/sections/DietSection";
-import AskQuestionSection from "@/components/dashboard/sections/AskQuestionSection";
 import FindDoctorSection from "@/components/dashboard/sections/FindDoctorSection";
+import FloatingChat from "@/components/dashboard/FloatingChat";
 
 const Dashboard = () => {
   const { profile, signOut } = useAuth();
@@ -50,8 +50,6 @@ const Dashboard = () => {
         return <MedicationsSection patientId={patientId} />;
       case "diet":
         return <DietSection patientId={patientId} />;
-      case "ask":
-        return <AskQuestionSection patientId={patientId} />;
       case "doctor":
         return <FindDoctorSection patientId={patientId} />;
       default:
@@ -78,6 +76,7 @@ const Dashboard = () => {
           </main>
           <DashboardFooter />
         </div>
+        <FloatingChat patientId={patientId} />
       </div>
     </SidebarProvider>
   );
