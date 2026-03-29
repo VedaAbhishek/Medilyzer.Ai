@@ -7,6 +7,7 @@ import MetricCards from "@/components/dashboard/MetricCards";
 import TrendsChart from "@/components/dashboard/TrendsChart";
 import SummaryCard from "@/components/dashboard/SummaryCard";
 import UploadButton from "@/components/dashboard/UploadButton";
+import ReportsList from "@/components/dashboard/ReportsList";
 import { Card, CardContent } from "@/components/ui/card";
 import { FileText } from "lucide-react";
 
@@ -55,6 +56,7 @@ const Dashboard = () => {
               <SummaryCard summary={summary} loading={loading} />
               <UploadButton patientId={patientId} onUploadComplete={refetch} />
             </div>
+            <ReportsList patientId={patientId} onDeleteComplete={refetch} />
           </>
         )}
       </main>
