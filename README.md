@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# Medilyzer.AI
 
-TODO: Document your project here
+Medilyzer landing website: https://doc-guide-genius.lovable.app/
